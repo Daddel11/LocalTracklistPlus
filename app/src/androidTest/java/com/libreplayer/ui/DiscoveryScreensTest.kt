@@ -226,8 +226,10 @@ class DiscoveryScreensTest {
         scrollToText(title)
         val titleNode = compose.onNodeWithText(title, useUnmergedTree = true).assertIsDisplayed()
         val artistNode = compose.onNodeWithText(artist, useUnmergedTree = true).assertIsDisplayed()
-        assertTrue(titleNode.getUnclippedBoundsInRoot().height <= 64.dp)
-        assertTrue(artistNode.getUnclippedBoundsInRoot().height <= 48.dp)
+        val titleBounds = titleNode.getUnclippedBoundsInRoot()
+        val artistBounds = artistNode.getUnclippedBoundsInRoot()
+        assertTrue(titleBounds.bottom - titleBounds.top <= 64.dp)
+        assertTrue(artistBounds.bottom - artistBounds.top <= 48.dp)
         compose.onNodeWithText(title).performClick()
         compose.runOnIdle {
             assertEquals(listOf(favorite), playedSongs)

@@ -33,7 +33,8 @@ downloads, audiobooks, NewPipe, and Tor are deliberately not implemented yet.
 
 ## Phase 1 - Navigation And Local Home
 
-- Status: IMPLEMENTED; final verification in progress.
+- Status: PARTIAL acceptance. Implementation and final build gates pass; final
+  physical-device acceptance is pending because the phone disconnected.
 - Home is the startup destination. Bottom tabs: Home, Suche, Radio, Bibliothek.
 - Home displays actual local album artwork, playlists, favorites, recent songs,
   real counts, and loading/error/permission/empty states; no fabricated content.
@@ -69,27 +70,41 @@ downloads, audiobooks, NewPipe, and Tor are deliberately not implemented yet.
 6. Added long-metadata, Light-theme, mini-player semantics and root-navigation tests.
    An instrumentation compilation attempt exposed a missing test-rules dependency
    and an unavailable assertion helper; both were corrected.
-7. Final external rebuild stalled and SSH subsequently became unreachable. The
-   installed phone APK is the earlier verified build, not the final review-fix source.
-8. GitHub Actions `Prototype verification` provides an independent final build,
-   unit/lint gates, debug/test APK artifacts and API 35 emulator instrumentation.
-   Its actual result must be recorded before calling final-source verification complete.
+7. Final external rebuild stalled and SSH temporarily became unreachable.
+   The testbench later recovered. The same complete Gradle command then passed
+   on the final source: unit tests, lint, APK and instrumentation assembly.
+   Existing 209 unit tests pass; lint has no errors (warnings remain).
+8. Final APKs were downloaded successfully. `adb devices -l` subsequently showed
+   no connected devices, and the final `adb install -r` attempt reported
+   `no devices/emulators found`. The phone therefore retains the earlier tested
+   prototype; the final review-fix APK is available locally, but not installed.
+9. The final suite contains 17 new Compose tests (14 screen/component tests and
+   3 root-navigation tests). They compile; only the initial 11 tests were executed
+   on the physical phone. Newer tests are not claimed as executed.
+10. Added an optional GitHub Actions `Prototype verification` workflow for build,
+    unit/lint gates, APK artifacts and API 35 emulator instrumentation. Workflow
+    dispatch returned HTTP 404 during new-repository initialization, so no CI or
+    emulator pass is claimed. Testbench also has no installed Android emulator.
 
 ### APK And Installation
 
 - Remote build output: `app/build/outputs/apk/debug/app-debug.apk`.
-- Local tested APK: `LocalTracklistPlus-debug.apk` in the development checkout
+- Local build APK: `LocalTracklistPlus-debug.apk` in the development checkout
   (ignored by Git, not part of the source tree).
+- Final APK delivered to the local PC's Downloads folder as
+  `LocalTracklistPlus-prototype.apk`; it includes the review fixes and matches
+  the production source in this branch.
 - Existing phone installation uses the external testbench's debug signing key.
   GitHub Actions uses a different debug key. Do not uninstall or erase data to
   work around a signature mismatch; rebuilding with the original signing key is
   required for a non-destructive update of this installation.
 - Generic install: `adb install -r path/to/app-debug.apk`.
-- CI APKs and test reports are downloadable from the private repository's Actions run.
+- Test/lint reports remain in the external checkout under `app/build/reports/`.
+  CI artifacts will only exist after a successful workflow run.
 
 ### Remaining Checks And Risks
 
-- Final-source physical-device tests await recovery of the external build environment.
+- Final-source physical-device tests await reconnection of the Android phone.
 - Actual audio playback, screen-off/Bluetooth/headset behavior, SAF import,
   permission-denial/settings-return, TalkBack, large fonts, and upgrade from a
   separately signed upstream release have not been manually accepted in this session.
