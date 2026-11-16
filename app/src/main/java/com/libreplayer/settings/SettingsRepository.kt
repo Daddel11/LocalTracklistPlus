@@ -20,7 +20,7 @@ class SettingsRepository(private val context: Context) {
         AppSettings(
             themeMode = preferences[KEY_THEME_MODE]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-                ?: ThemeMode.SYSTEM,
+                ?: ThemeMode.DARK,
             showFileNamesWhenMetadataMissing = preferences[KEY_SHOW_FILE_NAMES] ?: true,
             defaultSortOption = persistedLibrarySortOption(preferences[KEY_DEFAULT_SORT]),
         )

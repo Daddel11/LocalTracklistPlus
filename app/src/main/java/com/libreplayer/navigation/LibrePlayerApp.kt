@@ -1,6 +1,10 @@
 package com.libreplayer.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,10 +12,13 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -20,7 +27,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import com.libreplayer.R
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,6 +62,8 @@ import com.libreplayer.ui.screens.SettingsScreen
 import com.libreplayer.ui.screens.SettingsViewModel
 import com.libreplayer.ui.screens.SongsAlbumsArtistsScreen
 import com.libreplayer.ui.screens.SongsSection
+import com.libreplayer.ui.screens.HomeScreen
+import com.libreplayer.ui.screens.RadioPreviewScreen
 import com.libreplayer.ui.theme.LibrePlayerTheme
 
 @Composable
@@ -79,16 +94,89 @@ fun LibrePlayerApp(appContainer: AppContainer) {
         ) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = AppRoute.Albums.route,
+                startDestination = AppRoute.Home.route,
                 modifier = Modifier.padding(innerPadding),
             ) {
+                composable(AppRoute.Home.route) {
+                    HomeScreen(
+                        libraryState = libraryState,
+                        settings = settings,
+                        onOpenLibrary = { navController.navigateTopLevel(AppRoute.Library.route) },
+                        onOpenSettings = { navController.navigate(AppRoute.Settings.route) },
+                        onOpenSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
+                        onOpenPlaylist = { navController.navigate(AppRoute.PlaylistDetail.create(it)) },
+                        onOpenSmartPlaylist = { navController.navigate(AppRoute.SmartPlaylistDetail.create(it.name)) },
+                        onOpenAlbum = { navController.navigate(AppRoute.AlbumDetail.create(it)) },
+                        onPlaySongs = playbackViewModel::playSong,
+                    )
+                }
+                composable(AppRoute.Radio.route) {
+                    RadioPreviewScreen(onOpenLibrary = { navController.navigateTopLevel(AppRoute.Library.route) })
+                }
+                composable(AppRoute.Library.route) {
+                    var selectedSection by rememberSaveable { mutableStateOf("songs") }
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            librarySections.forEach { (section, label) ->
+                                FilterChip(
+                                    selected = selectedSection == section,
+                                    onClick = { selectedSection = section },
+                                    label = { androidx.compose.material3.Text(stringResource(label)) },
+                                    modifier = Modifier.padding(end = 8.dp),
+                                )
+                            }
+                            IconButton(onClick = { navController.navigate(AppRoute.Settings.route) }) {
+                                Icon(Icons.Filled.Settings, stringResource(R.string.plus_settings))
+                            }
+                        }
+                        if (selectedSection == "playlists") {
+                            PlaylistsScreen(
+                                libraryState = libraryState,
+                                onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
+                                onCreatePlaylist = libraryViewModel::createPlaylist,
+                                onRenamePlaylist = libraryViewModel::renamePlaylist,
+                                onDeletePlaylist = libraryViewModel::deletePlaylist,
+                                onOpenPlaylist = { navController.navigate(AppRoute.PlaylistDetail.create(it)) },
+                                onOpenSmartPlaylist = { navController.navigate(AppRoute.SmartPlaylistDetail.create(it.name)) },
+                                contentPadding = PaddingValues(0.dp),
+                            )
+                        } else {
+                            SongsAlbumsArtistsScreen(
+                                title = stringResource(R.string.plus_library),
+                                section = when (selectedSection) {
+                                    "albums" -> SongsSection.ALBUMS
+                                    "artists" -> SongsSection.ARTISTS
+                                    else -> SongsSection.SONGS
+                                },
+                                libraryState = libraryState,
+                                settings = settings,
+                                onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
+                                onSortChange = libraryViewModel::setDefaultSortOption,
+                                onGrantPermissionRescan = libraryViewModel::rescanLibrary,
+                                onToggleFavorite = libraryViewModel::toggleFavorite,
+                                onPlaySongs = playbackViewModel::playSong,
+                                onAddToQueue = playbackViewModel::addToQueue,
+                                onOpenAudioDetails = { navController.navigate(AppRoute.AudioDetails.create(it)) },
+                                onOpenAlbum = { navController.navigate(AppRoute.AlbumDetail.create(it)) },
+                                onOpenArtist = { navController.navigate(AppRoute.ArtistDetail.create(it)) },
+                                playlists = libraryState.playlists,
+                                onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
+                                contentPadding = PaddingValues(0.dp),
+                            )
+                        }
+                    }
+                }
                 composable(AppRoute.Albums.route) {
                     SongsAlbumsArtistsScreen(
                         title = "Albums",
                         section = SongsSection.ALBUMS,
                         libraryState = libraryState,
                         settings = settings,
-                        onSearch = { navController.navigate(AppRoute.Search.route) },
+                        onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
                         onSortChange = libraryViewModel::setDefaultSortOption,
                         onGrantPermissionRescan = libraryViewModel::rescanLibrary,
                         onToggleFavorite = libraryViewModel::toggleFavorite,
@@ -108,7 +196,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         section = SongsSection.ARTISTS,
                         libraryState = libraryState,
                         settings = settings,
-                        onSearch = { navController.navigate(AppRoute.Search.route) },
+                        onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
                         onSortChange = libraryViewModel::setDefaultSortOption,
                         onGrantPermissionRescan = libraryViewModel::rescanLibrary,
                         onToggleFavorite = libraryViewModel::toggleFavorite,
@@ -125,7 +213,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                 composable(AppRoute.Playlists.route) {
                     PlaylistsScreen(
                         libraryState = libraryState,
-                        onSearch = { navController.navigate(AppRoute.Search.route) },
+                        onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
                         onCreatePlaylist = libraryViewModel::createPlaylist,
                         onRenamePlaylist = libraryViewModel::renamePlaylist,
                         onDeletePlaylist = libraryViewModel::deletePlaylist,
@@ -138,7 +226,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                     SettingsScreen(
                         settings = settings,
                         importedRoots = libraryState.importedRoots,
-                        onSearch = { navController.navigate(AppRoute.Search.route) },
+                        onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
                         onThemeModeChange = settingsViewModel::setThemeMode,
                         onShowFileNamesChange = settingsViewModel::setShowFileNamesWhenMetadataMissing,
                         onDefaultSortChange = settingsViewModel::setDefaultSortOption,
@@ -147,6 +235,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         onAddImportedRoot = libraryViewModel::addImportedRoot,
                         onRemoveImportedRoot = libraryViewModel::removeImportedRoot,
                         contentPadding = PaddingValues(0.dp),
+                        onBack = { navController.navigateUp() },
                     )
                 }
                 composable(AppRoute.Search.route) {
@@ -163,6 +252,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         onOpenArtist = { navController.navigate(AppRoute.ArtistDetail.create(it)) },
                         playlists = libraryState.playlists,
                         onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
+                        isTopLevel = true,
                     )
                 }
                 composable(
@@ -314,20 +404,16 @@ private fun BottomBarContent(
                             selected = currentRoute == destination.route,
                             onClick = {
                                 if (currentRoute != destination.route) {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(AppRoute.Albums.route) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
+                                    navController.navigateTopLevel(destination.route)
                                 }
                             },
                             icon = {
                                 Icon(
                                     imageVector = destination.icon,
-                                    contentDescription = destination.label,
+                                    contentDescription = null,
                                 )
                             },
-                            label = { androidx.compose.material3.Text(destination.label) },
+                            label = { androidx.compose.material3.Text(stringResource(destination.label)) },
                         )
                     }
                 }
@@ -354,15 +440,30 @@ private fun SystemNavigationInsetSpacer() {
 
 private data class TopLevelDestination(
     val route: String,
-    val label: String,
+    @param:StringRes val label: Int,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
 )
 
 private val topLevelRoutes = listOf(
-    TopLevelDestination(AppRoute.Albums.route, "Albums", Icons.Filled.Album),
-    TopLevelDestination(AppRoute.Artists.route, "Artists", Icons.Filled.Person),
-    TopLevelDestination(AppRoute.Playlists.route, "Playlists", Icons.Filled.PlaylistPlay),
-    TopLevelDestination(AppRoute.Settings.route, "Settings", Icons.Filled.Settings),
+    TopLevelDestination(AppRoute.Home.route, R.string.plus_home, Icons.Filled.Home),
+    TopLevelDestination(AppRoute.Search.route, R.string.plus_search, Icons.Filled.Search),
+    TopLevelDestination(AppRoute.Radio.route, R.string.plus_radio, Icons.Filled.Radio),
+    TopLevelDestination(AppRoute.Library.route, R.string.plus_library, Icons.Filled.LibraryMusic),
 )
 
 private val topLevelRouteIds = topLevelRoutes.map(TopLevelDestination::route).toSet()
+
+private fun androidx.navigation.NavHostController.navigateTopLevel(route: String) {
+    navigate(route) {
+        popUpTo(AppRoute.Home.route) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+private val librarySections = listOf(
+    "songs" to R.string.plus_music,
+    "albums" to R.string.plus_albums,
+    "artists" to R.string.plus_artists,
+    "playlists" to R.string.plus_playlists,
+)

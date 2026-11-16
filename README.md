@@ -1,4 +1,32 @@
-# LocalTracklist
+# LocalTracklist+
+
+Private Android prototype developed from [quietswitch/LocalTracklist](https://github.com/quietswitch/LocalTracklist).
+The original Git history, MIT license, package identity, local library, and Media3 playback architecture are retained.
+Original development credit belongs to quietswitch; this repository contains the LocalTracklist+ modifications.
+
+## Prototype Scope
+
+Phase 1 adds a German-first Home, local search, Radio preview, and Bibliothek navigation with a shared mini-player.
+Albums, artists, playlists, favorites, folder import, and the full player reuse the upstream implementation.
+Radio is explicitly a preview, not a functioning streaming integration. No online providers or downloads are enabled.
+Existing upstream screens are not yet fully translated. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for verification and limitations.
+
+## Source Repositories
+
+| Project | Relationship |
+|---|---|
+| [LocalTracklist](https://github.com/quietswitch/LocalTracklist) | Actual source base; upstream history and license retained. |
+| [AndroidX / Media3 / Compose / Room](https://github.com/androidx/androidx) | Existing Android playback, UI, and persistence dependencies. |
+| [Radio Browser API](https://github.com/segler-alex/radiobrowser-api-rust) | Planned radio directory; not integrated in Phase 1. |
+| [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) | Planned optional metadata/external-open provider; not bundled or integrated. GPLv3 obligations must be reviewed before distribution if added. |
+| [Openverse](https://github.com/WordPress/openverse) | Planned audio metadata API; not integrated. |
+
+Planned catalog services: [LibriVox API](https://librivox.org/api/info),
+[Internet Archive developer APIs](https://archive.org/developers/), and
+[Radio Browser API documentation](https://docs.radio-browser.info/).
+These links document provenance and plans, not an assertion that these services are implemented or endorse this project.
+
+## Upstream Documentation
 
 Local music player for Android.
 

@@ -3,6 +3,9 @@ package com.libreplayer.navigation
 import android.net.Uri
 
 sealed class AppRoute(val route: String) {
+    data object Home : AppRoute("home")
+    data object Radio : AppRoute("radio")
+    data object Library : AppRoute("library")
     data object Albums : AppRoute("albums")
     data object Artists : AppRoute("artists")
     data object Playlists : AppRoute("playlists")

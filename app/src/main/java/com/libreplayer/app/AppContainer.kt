@@ -26,7 +26,6 @@ class AppContainer(context: Context) {
     val database: AppDatabase by lazy {
         Room.databaseBuilder(appContext, AppDatabase::class.java, "libreplayer.db")
             .addMigrations(MIGRATION_1_2)
-            .fallbackToDestructiveMigration()
             .build()
     }
 

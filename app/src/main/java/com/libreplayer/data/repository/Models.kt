@@ -126,7 +126,7 @@ data class SearchResult(
 )
 
 data class AppSettings(
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themeMode: ThemeMode = ThemeMode.DARK,
     val showFileNamesWhenMetadataMissing: Boolean = true,
     val defaultSortOption: LibrarySortOption = LibrarySortOption.TITLE,
 )

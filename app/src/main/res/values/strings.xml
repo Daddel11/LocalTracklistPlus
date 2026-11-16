@@ -1,3 +1,16 @@
 <resources>
-    <string name="app_name">LocalTracklist</string>
+    <string name="app_name">LocalTracklist+</string>
+    <string name="plus_home">Home</string>
+    <string name="plus_search">Suche</string>
+    <string name="plus_radio">Radio</string>
+    <string name="plus_library">Bibliothek</string>
+    <string name="plus_settings">Einstellungen</string>
+    <string name="plus_back">Zurück</string>
+    <string name="plus_music">Musik</string>
+    <string name="plus_albums">Alben</string>
+    <string name="plus_artists">Interpreten</string>
+    <string name="plus_playlists">Playlists</string>
+    <string name="plus_search_hint">Titel, Album oder Interpret</string>
+    <string name="plus_search_title">Deine Musik finden</string>
+    <string name="plus_search_description">Durchsuche lokale Titel, Alben und Interpreten. Online-Kataloge folgen in einer späteren Version.</string>
 </resources>

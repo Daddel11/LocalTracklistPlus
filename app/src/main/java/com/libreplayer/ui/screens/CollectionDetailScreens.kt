@@ -18,6 +18,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.libreplayer.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.libreplayer.data.repository.AppSettings
 import com.libreplayer.data.repository.LibraryScreenState
@@ -51,6 +53,7 @@ fun SearchScreen(
     onOpenArtist: (String) -> Unit,
     playlists: List<UserPlaylist>,
     onAddSongToPlaylist: (Long, String) -> Unit,
+    isTopLevel: Boolean = false,
 ) {
     var selectedSongForPlaylist by remember { mutableStateOf<Song?>(null) }
     Scaffold(
@@ -61,12 +64,12 @@ fun SearchScreen(
                         value = libraryState.searchQuery,
                         onValueChange = onQueryChange,
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search songs, albums, artists") },
+                        placeholder = { Text(stringResource(R.string.plus_search_hint)) },
                         singleLine = true,
                     )
                 },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back") }
+                    if (!isTopLevel) TextButton(onClick = onBack) { Text("Back") }
                 },
             )
         },
@@ -74,8 +77,8 @@ fun SearchScreen(
         val contentPadding = secondaryScreenContentPadding(scaffoldPadding = padding)
         if (libraryState.searchQuery.isBlank()) {
             EmptyState(
-                title = "Search your library",
-                message = "Search works across songs, albums, and artists stored on this device.",
+                title = stringResource(R.string.plus_search_title),
+                message = stringResource(R.string.plus_search_description),
                 modifier = Modifier.padding(contentPadding),
             )
         } else {

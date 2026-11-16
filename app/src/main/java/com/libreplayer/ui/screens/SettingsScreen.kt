@@ -28,6 +28,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.libreplayer.R
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.AppSettings
@@ -49,6 +51,7 @@ fun SettingsScreen(
     onAddImportedRoot: (Uri, String) -> Unit,
     onRemoveImportedRoot: (String) -> Unit,
     contentPadding: PaddingValues,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val treeLauncher = rememberLauncherForActivityResult(
@@ -72,7 +75,10 @@ fun SettingsScreen(
     ) {
         item {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.plus_settings)) },
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.plus_back)) }
+                },
                 actions = {
                     IconButton(onClick = onSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "Search library")

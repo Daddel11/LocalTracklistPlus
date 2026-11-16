@@ -24,14 +24,17 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF9ACCCB),
+    primary = Color(0xFF43C6AC),
     onPrimary = Color(0xFF00363F),
     primaryContainer = Color(0xFF224B54),
     secondary = Color(0xFFBBCBD1),
+    secondaryContainer = Color(0xFF224B54),
+    onSecondaryContainer = Color(0xFFC5E7E5),
     tertiary = Color(0xFFE3BAD7),
-    background = Color(0xFF101514),
-    surface = Color(0xFF101514),
-    surfaceContainerHighest = Color(0xFF28302F),
+    background = Color(0xFF101014),
+    surface = Color(0xFF101014),
+    surfaceContainer = Color(0xFF1B1B22),
+    surfaceContainerHighest = Color(0xFF282830),
 )
 
 @Composable

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="discovery_brand" translatable="false">LOCALTRACKLIST+</string>
+    <string name="discovery_for_you">Für dich</string>
+    <string name="discovery_search">Bibliothek durchsuchen</string>
+    <string name="discovery_settings">Einstellungen öffnen</string>
+    <string name="discovery_local_label">DEIN GERÄT. DEIN SOUND.</string>
+    <string name="discovery_hero_title">Musik, die\ndir gehört.</string>
+    <string name="discovery_hero_description">Deine lokale Sammlung im Mittelpunkt. Ohne Konto. Ohne Umwege.</string>
+    <string name="discovery_open_library">Zur Bibliothek</string>
+    <plurals name="discovery_library_count">
+        <item quantity="one">%d Titel in deiner Bibliothek</item>
+        <item quantity="other">%d Titel in deiner Bibliothek</item>
+    </plurals>
+    <plurals name="discovery_song_count">
+        <item quantity="one">%d Titel</item>
+        <item quantity="other">%d Titel</item>
+    </plurals>
+    <string name="discovery_loading">Deine Sammlung wird geladen</string>
+    <string name="discovery_loading_message">Bereits verfügbare Musik bleibt hier sichtbar.</string>
+    <string name="discovery_error">Die Sammlung konnte nicht vollständig geladen werden</string>
+    <string name="discovery_permission_title">Zugriff auf deine Musik fehlt</string>
+    <string name="discovery_permission_message">Öffne die Bibliothek, um den Musikzugriff zu verwalten oder lokale Ordner hinzuzufügen.</string>
+    <string name="discovery_empty_title">Hier beginnt deine Sammlung</string>
+    <string name="discovery_empty_message">Noch keine Musik vorhanden. Öffne die Bibliothek und füge deine lokalen Titel hinzu.</string>
+    <string name="discovery_albums">Deine Alben</string>
+    <string name="discovery_playlists">Deine Playlists</string>
+    <string name="discovery_favorites">Deine Favoriten</string>
+    <string name="discovery_recent">Zuletzt gehört</string>
+    <string name="discovery_open_album">Album %1$s öffnen</string>
+    <string name="discovery_open_playlist">Playlist %1$s öffnen</string>
+    <string name="discovery_show_section">%1$s anzeigen</string>
+    <string name="discovery_play_song">%1$s abspielen</string>
+    <string name="discovery_unknown_title">Unbekannter Titel</string>
+    <string name="discovery_unknown_artist">Unbekannter Interpret</string>
+    <string name="discovery_radio_title">Radio</string>
+    <string name="discovery_radio_label">PROTOTYP · NICHT IMPLEMENTIERT</string>
+    <string name="discovery_radio_headline">Noch nicht\nauf Sendung.</string>
+    <string name="discovery_radio_description">Diese Radioansicht ist nur eine Vorschau. Radio ist noch nicht implementiert: Es gibt keine Sender, keine Streams und keine Netzwerkverbindung. Deine lokale Musik findest du in der Bibliothek.</string>
+</resources>
