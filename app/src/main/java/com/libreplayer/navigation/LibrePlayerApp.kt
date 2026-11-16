@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -63,7 +65,8 @@ import com.libreplayer.ui.screens.SettingsViewModel
 import com.libreplayer.ui.screens.SongsAlbumsArtistsScreen
 import com.libreplayer.ui.screens.SongsSection
 import com.libreplayer.ui.screens.HomeScreen
-import com.libreplayer.ui.screens.RadioPreviewScreen
+import com.libreplayer.ui.screens.RadioScreen
+import com.libreplayer.ui.screens.RadioViewModel
 import com.libreplayer.ui.theme.LibrePlayerTheme
 
 @Composable
@@ -111,7 +114,24 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                     )
                 }
                 composable(AppRoute.Radio.route) {
-                    RadioPreviewScreen(onOpenLibrary = { navController.navigateTopLevel(AppRoute.Library.route) })
+                    val radioViewModel: RadioViewModel = viewModel(factory = viewModelFactory {
+                        initializer { RadioViewModel(appContainer.radioRepository, appContainer.playbackConnection) }
+                    })
+                    val radioState by radioViewModel.state.collectAsStateWithLifecycle()
+                    val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
+                    RadioScreen(
+                        state = radioState,
+                        playbackState = playbackState,
+                        onQueryChange = radioViewModel::setQuery,
+                        onGenreChange = radioViewModel::setGenre,
+                        onCountryChange = radioViewModel::setCountry,
+                        onLanguageChange = radioViewModel::setLanguage,
+                        onRetry = radioViewModel::refresh,
+                        onPlay = radioViewModel::play,
+                        onToggleFavorite = radioViewModel::toggleFavorite,
+                        onShowFavorites = radioViewModel::selectFavorites,
+                        onTogglePlayPause = playbackViewModel::togglePlayPause,
+                    )
                 }
                 composable(AppRoute.Library.route) {
                     var selectedSection by rememberSaveable { mutableStateOf("songs") }
@@ -381,7 +401,7 @@ private fun BottomBarContent(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val isTopLevelRoute = currentRoute in topLevelRouteIds
     val showMiniPlayer = currentRoute != AppRoute.NowPlaying.route &&
-        playbackState.currentSong != null
+        playbackState.hasCurrentMedia
     val chromeMode = resolveBottomChromeMode(
         isTopLevelRoute = isTopLevelRoute,
         showMiniPlayer = showMiniPlayer,

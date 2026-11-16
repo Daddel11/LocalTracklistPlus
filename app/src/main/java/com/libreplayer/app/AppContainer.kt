@@ -19,6 +19,7 @@ import com.libreplayer.library.playlist.PlaylistInterchange
 import com.libreplayer.media.playback.PlaybackConnection
 import com.libreplayer.media.playback.PlaybackSnapshotStore
 import com.libreplayer.settings.SettingsRepository
+import com.libreplayer.data.radio.RadioRepository
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -35,6 +36,7 @@ class AppContainer(context: Context) {
     private val libraryRefreshStore by lazy { LibraryRefreshStore(appContext) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(appContext) }
+    val radioRepository: RadioRepository by lazy { RadioRepository(appContext) }
     val playbackSnapshotStore: PlaybackSnapshotStore by lazy { PlaybackSnapshotStore(appContext) }
 
     val libraryRepository: LibraryRepository by lazy {

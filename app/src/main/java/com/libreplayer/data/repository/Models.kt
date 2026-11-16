@@ -170,4 +170,8 @@ data class PlaybackUiState(
     val shuffleEnabled: Boolean = false,
     val playWhenReady: Boolean = false,
     val errorMessage: String? = null,
-)
+    val currentRadio: com.libreplayer.data.radio.RadioStation? = null,
+) {
+    val hasCurrentMedia: Boolean get() = currentSong != null || currentRadio != null
+    val isRadio: Boolean get() = currentRadio != null
+}

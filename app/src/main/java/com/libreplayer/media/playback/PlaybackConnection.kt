@@ -15,6 +15,7 @@ import com.libreplayer.data.repository.LibraryRepository
 import com.libreplayer.data.repository.PlaybackUiState
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
+import com.libreplayer.data.radio.RadioStation
 import com.libreplayer.media.service.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -42,6 +44,7 @@ class PlaybackConnection(
     private var cachedQueue: List<Song> = emptyList()
     private var positionTickerJob: Job? = null
     private var currentPlaybackErrorMessage: String? = null
+    private var queueRevision = 0L
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -64,7 +67,7 @@ class PlaybackConnection(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            currentPlaybackErrorMessage = playbackErrorMessage(error.errorCode)
+            currentPlaybackErrorMessage = playbackErrorMessage(error.errorCode, isRadioMediaId(controller?.currentMediaItem?.mediaId))
             controller?.pause()
             refreshUiState()
         }
@@ -114,9 +117,30 @@ class PlaybackConnection(
         replaceQueue(queue, startIndex, positionMs)
     }
 
-    private suspend fun replaceQueue(queue: List<Song>, startIndex: Int, positionMs: Long) {
-        if (!isValidQueueSelection(queue.size, startIndex)) return
-        val activeController = controller ?: awaitController() ?: return
+    val playbackRequestRevision: Long get() = queueRevision
+
+    suspend fun playRadio(station: RadioStation) = withContext(Dispatchers.Main.immediate) {
+        if (station.stationUuid.isBlank() || !isHttpsRadioUrl(station.streamUrl)) {
+            currentPlaybackErrorMessage = "Radio requires a valid HTTPS stream URL."
+            refreshUiState()
+            return@withContext
+        }
+        val revision = ++queueRevision
+        val activeController = controller ?: awaitController() ?: return@withContext
+        if (revision != queueRevision) return@withContext
+        currentPlaybackErrorMessage = null
+        cachedQueue = emptyList()
+        activeController.setMediaItems(listOf(station.toRadioMediaItem()), 0, 0L)
+        activeController.prepare()
+        activeController.play()
+        refreshUiState()
+    }
+
+    private suspend fun replaceQueue(queue: List<Song>, startIndex: Int, positionMs: Long) = withContext(Dispatchers.Main.immediate) {
+        if (!isValidQueueSelection(queue.size, startIndex)) return@withContext
+        val revision = ++queueRevision
+        val activeController = controller ?: awaitController() ?: return@withContext
+        if (revision != queueRevision) return@withContext
         currentPlaybackErrorMessage = null
         cachedQueue = queue
         activeController.setMediaItems(
@@ -132,7 +156,9 @@ class PlaybackConnection(
 
     fun selectQueueItem(index: Int) {
         val activeController = controller ?: return
+        if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) return
         if (!isValidQueueSelection(activeController.mediaItemCount, index)) return
+        queueRevision++
         currentPlaybackErrorMessage = null
         activeController.seekToDefaultPosition(index)
         activeController.play()
@@ -141,11 +167,16 @@ class PlaybackConnection(
 
     suspend fun addToQueue(song: Song) {
         val activeController = controller ?: awaitController() ?: return
+        if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) {
+            replaceQueue(listOf(song), 0, 0L)
+            return
+        }
         activeController.addMediaItem(song.toMediaItem())
         refreshQueue()
     }
 
     fun togglePlayPause() {
+        queueRevision++
         controller?.let { activeController ->
             when (
                 playbackToggleAction(
@@ -159,6 +190,10 @@ class PlaybackConnection(
                     refreshUiState()
                 }
                 PlaybackToggleAction.PLAY -> {
+                    if (isRadioMediaId(activeController.currentMediaItem?.mediaId) && activeController.playbackState == Player.STATE_IDLE) {
+                        currentPlaybackErrorMessage = null
+                        activeController.prepare()
+                    }
                     activeController.play()
                     refreshUiState()
                 }
@@ -166,7 +201,7 @@ class PlaybackConnection(
                     retryCurrentItemFromLibrary(activeController)
                 }
                 PlaybackToggleAction.RESTART_ENDED -> {
-                    activeController.seekToDefaultPosition()
+                    if (!isRadioMediaId(activeController.currentMediaItem?.mediaId)) activeController.seekToDefaultPosition()
                     activeController.play()
                     refreshUiState()
                 }
@@ -175,6 +210,13 @@ class PlaybackConnection(
     }
 
     private suspend fun retryCurrentItemFromLibrary(activeController: MediaController) {
+        if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) {
+            currentPlaybackErrorMessage = null
+            activeController.prepare()
+            activeController.play()
+            refreshUiState()
+            return
+        }
         val currentIndex = activeController.currentMediaItemIndex
         val currentMediaId = activeController.currentMediaItem?.mediaId.orEmpty()
 
@@ -184,6 +226,7 @@ class PlaybackConnection(
         }
 
         val staleSong = cachedQueue.getOrNull(currentIndex)
+        val revision = queueRevision
         val refreshedSong = libraryRepository.getSongById(currentMediaId)
             ?: staleSong?.let { stale ->
                 findUniqueRediscoveredSong(
@@ -192,6 +235,7 @@ class PlaybackConnection(
                 )
             }
 
+        if (revision != queueRevision || activeController.currentMediaItem?.mediaId != currentMediaId) return
         if (refreshedSong == null) {
             currentPlaybackErrorMessage = "This track file is no longer available."
             refreshUiState()
@@ -215,6 +259,8 @@ class PlaybackConnection(
 
     fun seekTo(positionMs: Long) {
         controller?.let { activeController ->
+            if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) return
+            queueRevision++
             val knownDurationMs = activeController.duration.takeIf { it > 0L }
                 ?: cachedQueue.getOrNull(activeController.currentMediaItemIndex)
                     ?.durationMs
@@ -230,10 +276,14 @@ class PlaybackConnection(
     }
 
     fun skipNext() {
+        if (isRadioMediaId(controller?.currentMediaItem?.mediaId)) return
+        queueRevision++
         controller?.seekToNextMediaItem()
     }
 
     fun skipPrevious() {
+        if (isRadioMediaId(controller?.currentMediaItem?.mediaId)) return
+        queueRevision++
         controller?.let { activeController ->
             when (
                 previousAction(
@@ -249,12 +299,14 @@ class PlaybackConnection(
     }
 
     fun setShuffleEnabled(enabled: Boolean) {
+        if (isRadioMediaId(controller?.currentMediaItem?.mediaId)) return
         controller?.shuffleModeEnabled = enabled
         refreshUiState()
     }
 
     fun cycleRepeatMode() {
         val activeController = controller ?: return
+        if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) return
         activeController.repeatMode = nextRepeatMode(activeController.repeatMode)
         refreshUiState()
     }
@@ -268,10 +320,11 @@ class PlaybackConnection(
     private fun refreshUiState() {
         val activeController = controller
         if (activeController == null) {
-            _uiState.value = PlaybackUiState()
+            _uiState.value = PlaybackUiState(errorMessage = currentPlaybackErrorMessage)
             return
         }
-        val currentSong = cachedQueue.getOrNull(activeController.currentMediaItemIndex)
+        val isRadio = isRadioMediaId(activeController.currentMediaItem?.mediaId)
+        val currentSong = if (isRadio) null else cachedQueue.getOrNull(activeController.currentMediaItemIndex)
         _uiState.value = PlaybackUiState(
             isConnected = true,
             isLoading = activeController.playbackState == Player.STATE_BUFFERING,
@@ -283,25 +336,37 @@ class PlaybackConnection(
                 playbackState = activeController.playbackState,
             ),
             currentSong = currentSong,
-            queue = cachedQueue,
+            currentRadio = activeController.currentMediaItem?.radioStation(),
+            queue = if (isRadio) emptyList() else cachedQueue,
             currentIndex = activeController.currentMediaItemIndex,
-            positionMs = activeController.currentPosition.coerceAtLeast(0L),
-            durationMs = activeController.duration.takeIf { it > 0L } ?: currentSong?.durationMs ?: 0L,
+            positionMs = if (isRadio) 0L else activeController.currentPosition.coerceAtLeast(0L),
+            durationMs = if (isRadio) 0L else activeController.duration.takeIf { it > 0L } ?: currentSong?.durationMs ?: 0L,
             bufferedPositionMs = activeController.bufferedPosition,
-            repeatMode = activeController.repeatMode,
-            shuffleEnabled = activeController.shuffleModeEnabled,
+            repeatMode = if (isRadio) Player.REPEAT_MODE_OFF else activeController.repeatMode,
+            shuffleEnabled = !isRadio && activeController.shuffleModeEnabled,
             playWhenReady = activeController.playWhenReady,
-            errorMessage = currentPlaybackErrorMessage,
+            errorMessage = currentPlaybackErrorMessage
+                ?: activeController.playerError?.let { playbackErrorMessage(it.errorCode, isRadio) },
         )
     }
 
     private suspend fun refreshQueue() {
         val activeController = controller ?: return
+        if (isRadioMediaId(activeController.currentMediaItem?.mediaId)) {
+            cachedQueue = emptyList()
+            refreshUiState()
+            return
+        }
+        val revision = queueRevision
         val mediaItems = List(activeController.mediaItemCount) { index ->
             activeController.getMediaItemAt(index)
         }
-        val songsById = libraryRepository.getSongsByIds(mediaItems.map(MediaItem::mediaId)).associateBy { it.id }
-        cachedQueue = mediaItems.map { mediaItem ->
+        val localItems = mediaItems.filterNot { isRadioMediaId(it.mediaId) }
+        val songsById = libraryRepository.getSongsByIds(localItems.map(MediaItem::mediaId)).associateBy { it.id }
+        if (revision != queueRevision || isRadioMediaId(activeController.currentMediaItem?.mediaId) ||
+            mediaItems != List(activeController.mediaItemCount) { activeController.getMediaItemAt(it) }
+        ) return
+        cachedQueue = localItems.map { mediaItem ->
             songsById[mediaItem.mediaId] ?: mediaItem.asFallbackSong()
         }
         refreshUiState()
@@ -393,8 +458,19 @@ private suspend fun ListenableFuture<MediaController>.await(): MediaController? 
         continuation.invokeOnCancellation { cancel(true) }
     }
 
-internal fun playbackErrorMessage(errorCode: Int): String =
-    when (errorCode) {
+internal fun playbackErrorMessage(errorCode: Int, isRadio: Boolean = false): String =
+    if (isRadio) when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED ->
+            "Radio requires a secure HTTPS stream."
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+            "Unable to connect to this radio station. Check your network and try again."
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ->
+            "This radio station uses an unsupported audio format."
+        else -> "Unable to play this radio stream. Check its HTTPS address and network, then retry."
+    } else when (errorCode) {
         PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
             "This track file is no longer available."
         PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->

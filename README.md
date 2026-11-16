@@ -6,10 +6,23 @@ Original development credit belongs to quietswitch; this repository contains the
 
 ## Prototype Scope
 
-Phase 1 adds a German-first Home, local search, Radio preview, and Bibliothek navigation with a shared mini-player.
+The prototype adds a German-first Home, local search, live Radio Browser stations, and Bibliothek navigation with a shared mini-player.
 Albums, artists, playlists, favorites, folder import, and the full player reuse the upstream implementation.
-Radio is explicitly a preview, not a functioning streaming integration. No online providers or downloads are enabled.
+Radio is the first implemented online source. Downloads, recording, other online catalogs and mixed-provider playlists are not implemented.
 Existing upstream screens are not yet fully translated. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for verification and limitations.
+
+## Listen To Music
+
+1. Open **Radio** and search for a station, for example `Radio Paradise`.
+2. Optionally filter by genre, country or language, then press the station's play button.
+3. Use the heart to save a station. Saved stations remain visible offline; playback needs internet.
+4. Tap the mini-player for the LIVE player. Local music remains accessible in **Bibliothek**.
+
+The first source supports direct HTTPS MP3, AAC/AAC+, Ogg/Vorbis/Opus and FLAC audio, subject to device codec support.
+HTTP-only stations and HLS/M3U/PLS playlists are deliberately excluded from this version.
+Search is bounded to 30 results. The most recent matching search is cached for up to 24 hours for network-failure fallback.
+Radio Browser receives station searches/filter values and a play-click request. Playing connects directly to the broadcaster.
+No account, analytics SDK, stream recording, download cache or radio entries in local listening history are added.
 
 ## Source Repositories
 
@@ -17,13 +30,14 @@ Existing upstream screens are not yet fully translated. See [IMPLEMENTATION_STAT
 |---|---|
 | [LocalTracklist](https://github.com/quietswitch/LocalTracklist) | Actual source base; upstream history and license retained. |
 | [AndroidX / Media3 / Compose / Room](https://github.com/androidx/androidx) | Existing Android playback, UI, and persistence dependencies. |
-| [Radio Browser API](https://github.com/segler-alex/radiobrowser-api-rust) | Planned radio directory; not integrated in Phase 1. |
+| [Radio Browser API](https://github.com/segler-alex/radiobrowser-api-rust) | Implemented station directory, search and stream resolution via its public HTTPS API. |
+| [OkHttp](https://github.com/square/okhttp) | HTTPS API and streaming transport with URL/DNS/redirect restrictions. |
 | [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) | Planned optional metadata/external-open provider; not bundled or integrated. GPLv3 obligations must be reviewed before distribution if added. |
 | [Openverse](https://github.com/WordPress/openverse) | Planned audio metadata API; not integrated. |
 
-Planned catalog services: [LibriVox API](https://librivox.org/api/info),
-[Internet Archive developer APIs](https://archive.org/developers/), and
-[Radio Browser API documentation](https://docs.radio-browser.info/).
+Planned catalog services: [LibriVox API](https://librivox.org/api/info) and
+[Internet Archive developer APIs](https://archive.org/developers/).
+Implemented radio service: [Radio Browser API documentation](https://docs.radio-browser.info/).
 These links document provenance and plans, not an assertion that these services are implemented or endorse this project.
 
 ## Upstream Documentation

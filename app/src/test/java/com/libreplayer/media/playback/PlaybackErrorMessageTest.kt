@@ -6,6 +6,18 @@ import org.junit.Test
 
 class PlaybackErrorMessageTest {
     @Test
+    fun `radio failures describe network HTTPS or stream rather than local files`() {
+        assertThat(playbackErrorMessage(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, true))
+            .contains("network")
+        assertThat(playbackErrorMessage(PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED, true))
+            .contains("HTTPS")
+        assertThat(playbackErrorMessage(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, true))
+            .contains("radio stream")
+        assertThat(playbackErrorMessage(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, true))
+            .contains("unsupported")
+    }
+
+    @Test
     fun `missing and inaccessible files have specific messages`() {
         assertThat(playbackErrorMessage(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND))
             .contains("no longer available")

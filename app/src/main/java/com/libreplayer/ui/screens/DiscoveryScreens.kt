@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -258,41 +257,6 @@ fun HomeScreen(
                         onPlaySongs = onPlaySongs,
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun RadioPreviewScreen(onOpenLibrary: () -> Unit) {
-    Surface(color = DiscoveryColors.background, contentColor = DiscoveryColors.onBackground) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().background(DiscoveryColors.background),
-            contentPadding = PaddingValues(vertical = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Icon(Icons.Default.Radio, null, tint = DiscoveryColors.primary, modifier = Modifier.size(48.dp))
-                    Text(
-                        stringResource(R.string.discovery_radio_title),
-                        modifier = Modifier.semantics { heading() },
-                        color = DiscoveryColors.onBackground,
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-            item {
-                DiscoveryHero(
-                    eyebrow = stringResource(R.string.discovery_radio_label),
-                    title = stringResource(R.string.discovery_radio_headline),
-                    description = stringResource(R.string.discovery_radio_description),
-                    onOpenLibrary = onOpenLibrary,
-                )
             }
         }
     }

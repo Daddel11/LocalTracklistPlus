@@ -28,7 +28,6 @@ import com.libreplayer.data.repository.ThemeMode
 import com.libreplayer.data.repository.UserPlaylist
 import com.libreplayer.ui.components.MiniPlayer
 import com.libreplayer.ui.screens.HomeScreen
-import com.libreplayer.ui.screens.RadioPreviewScreen
 import com.libreplayer.ui.theme.LibrePlayerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -305,24 +304,6 @@ class DiscoveryScreensTest {
             assertEquals(listOf(favorite), playedSongs)
             assertEquals(0, playedIndex)
         }
-    }
-
-    @Test
-    fun radioExplicitlyStatesUnimplementedAndOffersLibrary() {
-        var libraryCalls = 0
-        compose.setContent {
-            LibrePlayerTheme(ThemeMode.DARK) {
-                RadioPreviewScreen(onOpenLibrary = { libraryCalls++ })
-            }
-        }
-
-        scrollToText(resources.getString(R.string.discovery_radio_label))
-        compose.onNodeWithText(resources.getString(R.string.discovery_radio_label)).assertIsDisplayed()
-        scrollToText(resources.getString(R.string.discovery_radio_description))
-        compose.onNodeWithText(resources.getString(R.string.discovery_radio_description)).assertIsDisplayed()
-        scrollToText(resources.getString(R.string.discovery_open_library))
-        compose.onNodeWithText(resources.getString(R.string.discovery_open_library)).performClick()
-        compose.runOnIdle { assertEquals(1, libraryCalls) }
     }
 
     private fun showHome(

@@ -34,7 +34,11 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: bash ./gradlew :app:connectedDebugAndroidTest --console=plain
+          script: |
+            ffmpeg -v error -f lavfi -i anullsrc=r=8000:cl=mono -t 31 -c:a pcm_s16le -y /tmp/localtracklist-smoke.wav
+            adb push /tmp/localtracklist-smoke.wav /sdcard/Music/localtracklist-smoke.wav
+            adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Music/localtracklist-smoke.wav
+            bash ./gradlew :app:connectedDebugAndroidTest --console=plain
       - name: Upload APKs and reports
         if: always()
         uses: actions/upload-artifact@v4

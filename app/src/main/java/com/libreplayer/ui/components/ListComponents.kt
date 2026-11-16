@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,11 +28,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
+import com.libreplayer.R
 import com.libreplayer.data.repository.Album
 import com.libreplayer.data.repository.ArtworkCandidate
 import com.libreplayer.data.repository.Artist
@@ -257,7 +261,9 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
 ) {
-    val currentSong = state.currentSong ?: return
+    val currentSong = state.currentSong
+    val radio = state.currentRadio
+    if (radio == null && currentSong == null) return
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -274,24 +280,56 @@ fun MiniPlayer(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ArtworkThumbnail(
-                artworkUri = currentSong.artworkUri,
-                fallbackArtworkUri = currentSong.contentUri,
-                sourceRevisionEpochSeconds = currentSong.dateModifiedEpochSeconds,
-                fallbackText = currentSong.resolvedTitle,
-                variant = ArtworkVariant.MINI,
-                modifier = Modifier.size(48.dp),
-            )
+            if (radio != null) {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Radio, contentDescription = null)
+                    }
+                }
+            } else if (currentSong != null) {
+                ArtworkThumbnail(
+                    artworkUri = currentSong.artworkUri,
+                    fallbackArtworkUri = currentSong.contentUri,
+                    sourceRevisionEpochSeconds = currentSong.dateModifiedEpochSeconds,
+                    fallbackText = currentSong.resolvedTitle,
+                    variant = ArtworkVariant.MINI,
+                    modifier = Modifier.size(48.dp),
+                )
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = currentSong.resolvedTitle,
+                    text = radio?.name ?: currentSong!!.resolvedTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge,
                 )
+                if (radio != null) {
+                    Text(
+                        text = stringResource(R.string.radio_player_live_source),
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
-                    text = state.errorMessage ?: currentSong.resolvedArtist,
+                    text = state.errorMessage ?: if (radio != null) {
+                        stringResource(
+                            if (state.isLoading || state.playbackState == Player.STATE_BUFFERING) {
+                                R.string.radio_player_buffering
+                            } else if (state.primaryControlShowsPause) {
+                                R.string.radio_player_playing
+                            } else {
+                                R.string.radio_player_paused
+                            },
+                        )
+                    } else {
+                        currentSong!!.resolvedArtist
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -305,14 +343,18 @@ fun MiniPlayer(
             IconButton(onClick = onTogglePlayPause) {
                 Icon(
                     imageVector = if (state.primaryControlShowsPause) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (state.primaryControlShowsPause) "Pause" else "Play",
+                    contentDescription = if (radio != null) {
+                        stringResource(if (state.primaryControlShowsPause) R.string.radio_player_pause else R.string.radio_player_play)
+                    } else if (state.primaryControlShowsPause) "Pause" else "Play",
                 )
             }
-            IconButton(onClick = onSkipNext) {
-                Icon(
-                    imageVector = Icons.Filled.SkipNext,
-                    contentDescription = "Next track",
-                )
+            if (radio == null) {
+                IconButton(onClick = onSkipNext) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "Next track",
+                    )
+                }
             }
         }
     }

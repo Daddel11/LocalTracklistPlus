@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="radio_player_title">Radio-Wiedergabe</string>
+    <string name="radio_player_back">Zurück</string>
+    <string name="radio_player_icon">Radiosender</string>
+    <string name="radio_player_live">LIVE</string>
+    <string name="radio_player_live_source">LIVE · RadioBrowser</string>
+    <string name="radio_player_source">Quelle: RadioBrowser</string>
+    <string name="radio_player_play">Abspielen</string>
+    <string name="radio_player_pause">Pause</string>
+    <string name="radio_player_playing">Live-Wiedergabe</string>
+    <string name="radio_player_paused">Wiedergabe pausiert</string>
+    <string name="radio_player_buffering">Livestream wird gepuffert…</string>
+    <string name="radio_player_error">Livestream kann nicht wiedergegeben werden: %1$s</string>
+    <string name="radio_player_retry">Erneut versuchen</string>
+    <string name="radio_player_country">Land: %1$s</string>
+    <string name="radio_player_language">Sprache: %1$s</string>
+    <string name="radio_player_tags">Genres: %1$s</string>
+    <string name="radio_player_codec">Codec: %1$s</string>
+    <string name="radio_player_bitrate">Bitrate: %1$d kbit/s</string>
+    <string name="radio_player_https">Stream-Verbindung: HTTPS</string>
+    <string name="radio_player_no_https">Stream-Verbindung: kein HTTPS</string>
+    <string name="radio_player_queue_message">Radio ist ein LIVE-Stream ohne Titelliste. Die lokale Warteschlange ist hier nicht verfügbar.</string>
+</resources>

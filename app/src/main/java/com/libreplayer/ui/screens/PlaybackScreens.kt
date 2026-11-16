@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -30,6 +33,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -46,8 +50,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import com.libreplayer.R
 import com.libreplayer.data.repository.AppSettings
 import com.libreplayer.data.repository.PlaybackUiState
 import com.libreplayer.media.playback.queueOccurrenceKey
@@ -75,6 +85,10 @@ fun NowPlayingScreen(
     onOpenQueue: () -> Unit,
     onOpenAudioDetails: (String) -> Unit,
 ) {
+    if (playbackState.currentRadio != null) {
+        RadioNowPlayingScreen(playbackState, onBack, onTogglePlayPause)
+        return
+    }
     val song = playbackState.currentSong
     if (song == null) {
         Scaffold(
@@ -237,6 +251,103 @@ fun NowPlayingScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RadioNowPlayingScreen(
+    state: PlaybackUiState,
+    onBack: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+) {
+    val station = state.currentRadio ?: return
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.radio_player_title)) },
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.radio_player_back)) }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Radio,
+                contentDescription = stringResource(R.string.radio_player_icon),
+                modifier = Modifier.size(144.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = station.name,
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+            )
+            Text(stringResource(R.string.radio_player_live), style = MaterialTheme.typography.titleMedium)
+            val controlLabel = stringResource(
+                if (state.primaryControlShowsPause) R.string.radio_player_pause else R.string.radio_player_play,
+            )
+            Button(onClick = onTogglePlayPause) {
+                Icon(
+                    if (state.primaryControlShowsPause) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(controlLabel)
+            }
+            if (state.errorMessage != null) {
+                Text(
+                    text = stringResource(R.string.radio_player_error, state.errorMessage),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                TextButton(onClick = onTogglePlayPause) {
+                    Text(stringResource(R.string.radio_player_retry))
+                }
+            } else if (state.isLoading || state.playbackState == Player.STATE_BUFFERING) {
+                Text(
+                    stringResource(R.string.radio_player_buffering),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                Text(stringResource(
+                    if (state.primaryControlShowsPause) R.string.radio_player_playing else R.string.radio_player_paused,
+                ))
+            }
+            if (station.countryCode.isNotBlank()) {
+                Text(stringResource(R.string.radio_player_country, station.countryCode))
+            }
+            if (station.language.isNotBlank()) {
+                Text(stringResource(R.string.radio_player_language, station.language))
+            }
+            if (station.tags.isNotBlank()) {
+                Text(stringResource(R.string.radio_player_tags, station.tags))
+            }
+            if (station.codec.isNotBlank()) {
+                Text(stringResource(R.string.radio_player_codec, station.codec))
+            }
+            if (station.bitrate > 0) {
+                Text(stringResource(R.string.radio_player_bitrate, station.bitrate))
+            }
+            Text(stringResource(R.string.radio_player_source))
+            Text(stringResource(
+                if (station.streamUrl.startsWith("https://", ignoreCase = true)) {
+                    R.string.radio_player_https
+                } else {
+                    R.string.radio_player_no_https
+                },
+            ))
+        }
+    }
+}
+
 @Composable
 private fun NowPlayingMoreMenu(
     onOpenAudioDetails: () -> Unit,
@@ -275,7 +386,13 @@ fun PlaybackQueueScreen(
         },
     ) { padding ->
         val contentPadding = secondaryScreenContentPadding(scaffoldPadding = padding)
-        if (playbackState.queue.isEmpty()) {
+        if (playbackState.currentRadio != null) {
+            EmptyState(
+                title = stringResource(R.string.radio_player_live),
+                message = stringResource(R.string.radio_player_queue_message),
+                modifier = Modifier.padding(contentPadding),
+            )
+        } else if (playbackState.queue.isEmpty()) {
             EmptyState(
                 title = "Queue is empty",
                 message = "Start playback from the library to see the current queue.",

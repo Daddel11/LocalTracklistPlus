@@ -33,8 +33,4 @@
     <string name="discovery_play_song">%1$s abspielen</string>
     <string name="discovery_unknown_title">Unbekannter Titel</string>
     <string name="discovery_unknown_artist">Unbekannter Interpret</string>
-    <string name="discovery_radio_title">Radio</string>
-    <string name="discovery_radio_label">PROTOTYP · NICHT IMPLEMENTIERT</string>
-    <string name="discovery_radio_headline">Noch nicht\nauf Sendung.</string>
-    <string name="discovery_radio_description">Diese Radioansicht ist nur eine Vorschau. Radio ist noch nicht implementiert: Es gibt keine Sender, keine Streams und keine Netzwerkverbindung. Deine lokale Musik findest du in der Bibliothek.</string>
 </resources>

@@ -1,5 +1,91 @@
 # LocalTracklist+ Implementation Status
 
+## Current Delivery - Real Radio Source
+
+Status: IMPLEMENTED AND TESTED, 2026-11-16. Final radio APK installed on the connected
+CPH2797 Android phone without uninstalling or clearing production app data.
+
+### What Works
+
+- Actual Radio Browser popular stations and name search; genre, country and language filters.
+- User-initiated stream resolution through the provider's click-counter endpoint.
+- Direct HTTPS audio through the existing service-owned ExoPlayer and MediaSession.
+- Saved station favorites in a separate DataStore; bounded matching-search fallback
+  cache with a 24-hour expiry, not an audio/download cache.
+- Stable `radio:<stationuuid>` identities, separate from local `Song` entities.
+- Shared mini-player and scrollable LIVE full player, with buffering/error/retry states.
+- Radio omits seeking, next/previous, shuffle/repeat and local-only actions, including
+  notification/session capabilities. Local playback controls work again after switching back.
+- Existing local queue snapshot keys, duplicate occurrences, position, repeat and shuffle
+  survive radio playback. Radio is excluded from local played-history writes.
+- Radio descriptors restore paused without making a stream request until the user plays.
+- Pending station resolution cannot override a more recent local playback/transport request.
+- No Room schema change, destructive migration, second player, recordings or downloads.
+
+### Security And Scope
+
+- Internet permission added; cleartext traffic remains disabled.
+- Public HTTPS destinations only, with guarded DNS results and redirect validation.
+  Credentials, onion/local/private/link-local/multicast destinations and HTTP downgrades are rejected.
+- Direct progressive MP3, AAC/AAC+, Ogg/Vorbis/Opus and FLAC; actual decoding depends on the device.
+- HLS/M3U/PLS and HTML/XML/plain playlist responses are intentionally rejected. HLS was
+  deferred after review identified subresource-isolation and finite-resource limit requirements.
+- Two bounded API mirrors, 5-second connect/15-second read timeouts, 20-second API call
+  limit, 2 MiB API response cap, cancellation, and no aggressive rate-limit retries.
+- Source policy records the Radio Browser documentation as evidence, allows radio streaming,
+  denies downloads/recording, and denies unknown sources. This is not a content-license guarantee.
+- Searches/filter values and play clicks reach Radio Browser; audio connects to the broadcaster.
+  No network requests are started merely by opening Home. Radio loading starts when entering Radio.
+
+### Verification
+
+- Final build command: `bash ./gradlew testDebugUnitTest lintDebug assembleDebug :app:assembleDebugAndroidTest --console=plain`.
+- 268 JVM unit tests passed, no failures or skips. Lint passed with no errors; warnings remain.
+- API 35 emulator: 26 non-live Android tests passed, including Room migration/source
+  reconciliation, Home, navigation and radio player controls. The 27th, opt-in public-network
+  test is skipped in the default run to avoid uncontrolled third-party API traffic.
+- Physical phone: explicit `RadioLivePlaybackTest` passed on the delivered final APK.
+  It searches Radio Paradise, resolves and actually plays an official HTTPS station,
+  recreates the Activity, verifies the complete descriptor and retained local keys,
+  and switches back to a controlled local WAV queue while preserving duplicate occurrences,
+  repeat, shuffle and working local controls. Playback is paused and its own WAV deleted afterward.
+- Real playback exposed Kotlin delegation of Java default `Player.Listener` callbacks:
+  native audio played while controller state stayed idle. Fixed with explicit forwarding
+  of all Media3 1.9.2 callbacks and dedicated regressions.
+- Navigation tests now wait for the selected destination and scroll the Home CTA into view;
+  saved scroll positions are valid app behavior. No saved-state assertions were removed.
+- The upstream scanner smoke requires a real primary song lasting at least 30 seconds.
+  A generated 31-second silent WAV on the disposable emulator satisfied that prerequisite;
+  no phone media files were added or modified.
+
+Live acceptance command (explicit public network use):
+
+```sh
+adb shell am instrument -w -r -e liveRadio true -e class com.libreplayer.ui.RadioLivePlaybackTest com.libreplayer.test/com.libreplayer.migration.SourceMigrationTestRunner
+```
+
+### Delivery And Limits
+
+- Final local APK: `Downloads/LocalTracklistPlus-radio.apk`; original testbench debug signing
+  key and application ID retained, so the phone update preserves existing production data.
+- Source: https://github.com/Daddel11/LocalTracklistPlus, branch `feature/localtracklist-plus`.
+- Build checkout on testbench: `/home/test/localtracklist-plus`.
+- Radio favorites are separate from local playlists. Mixed-provider playlists, global online
+  search, source enable/disable settings, downloads, audiobooks and other providers remain future work.
+- Station availability and broadcaster metadata are external and may change. Only 30 results
+  are shown; invalid/broken/non-HTTPS/unsupported stations are filtered out, with no HTTP fallback.
+- Corporate proxy-only networks are not yet an app feature; the guarded client uses direct
+  connections. Emulator live access was network-blocked, so live acceptance used the real phone.
+- Background/system controls are wired through the existing session; extended screen-off,
+  headset/Bluetooth, process-kill and long-duration network recovery acceptance remain open.
+- Testbench now has a dedicated API 35 AVD, `LocalTracklistRadioTest`, and the test user has
+  KVM group access. Only the dedicated emulator was used; no other testbench processes were stopped.
+
+## Phase 1 History
+
+The following sections describe the original, pre-radio prototype and its initial verification.
+The current delivery and tests above supersede historical pending statuses and Radio preview notes.
+
 ## Scope
 
 First prototype implements the Phase 1 entry point in section 22 of the supplied
