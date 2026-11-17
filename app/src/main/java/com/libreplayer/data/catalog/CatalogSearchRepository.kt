@@ -22,8 +22,8 @@ class CatalogSearchRepository internal constructor(private val transport: Catalo
             throw CatalogException(CatalogError.POLICY, "Search text must contain at most 160 printable characters")
         }
         val providers = when (providerId) {
-            null -> listOf("archive", "openverse")
-            "archive", "openverse" -> listOf(providerId)
+            null -> listOf("archive", "openverse", "audius", "ccmixter")
+            "archive", "openverse", "audius", "ccmixter" -> listOf(providerId)
             else -> throw CatalogException(CatalogError.POLICY, "Unknown catalog provider")
         }
         supervisorScope {
@@ -33,6 +33,8 @@ class CatalogSearchRepository internal constructor(private val transport: Catalo
                     when (provider) {
                         "archive" -> searchArchive(normalized, result)
                         "openverse" -> searchOpenverse(normalized, result)
+                        "audius" -> searchAudius(normalized, result)
+                        "ccmixter" -> searchCcmixter(normalized, result)
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -83,6 +85,34 @@ class CatalogSearchRepository internal constructor(private val transport: Catalo
                     fresh.licenseUrl != track.licenseUrl
                 ) denied("Freesound recording, file or license changed; refresh the catalog")
                 CatalogParsers.verifyFreesound(fresh, transport.evidence(fresh.sourceUrl.toHttpUrl()))
+            }
+            "audius" -> {
+                if (!CatalogRights.validAudiusId(track.providerItemId) ||
+                    track.streamUrl != audiusStreamUrl(track.providerItemId).toString() ||
+                    track.permissionEvidenceUrl != track.sourceUrl || !CatalogRights.validAudiusPermalink(track.sourceUrl)
+                ) denied("Selected Audius track has an invalid stream binding")
+                val fresh = CatalogParsers.audiusTrack(
+                    CatalogParsers.objectJson(transport.json(audiusTrackUrl(track.providerItemId))).optJSONObject("data"),
+                ) ?: denied("Audius track is no longer publicly streamable")
+                if (fresh.id != track.id || fresh.assetId != track.assetId || fresh.streamUrl != track.streamUrl ||
+                    fresh.sourceUrl != track.sourceUrl || fresh.licenseUrl != track.licenseUrl ||
+                    fresh.downloadAllowed != track.downloadAllowed
+                ) denied("Audius recording, stream identity or license changed; refresh the catalog")
+                fresh
+            }
+            "ccmixter" -> {
+                if (!CatalogRights.validUploadId(track.providerItemId) || !CatalogRights.validFilename(track.assetId) ||
+                    !CatalogRights.ccmixterStream(track.streamUrl, track.assetId) ||
+                    !CatalogRights.ccmixterPage(track.sourceUrl, track.providerItemId) ||
+                    track.permissionEvidenceUrl != track.sourceUrl
+                ) denied("Selected ccMixter file has an invalid origin binding")
+                val fresh = CatalogParsers.ccmixter(transport.json(ccmixterUploadUrl(track.providerItemId)))
+                    .singleOrNull { it.id == track.id } ?: denied("Selected ccMixter MP3 is no longer available")
+                if (fresh.assetId != track.assetId || fresh.streamUrl != track.streamUrl || fresh.sourceUrl != track.sourceUrl ||
+                    fresh.licenseUrl != track.licenseUrl || fresh.downloadBytes != track.downloadBytes ||
+                    fresh.durationMs != track.durationMs
+                ) denied("ccMixter recording, file or license changed; refresh the catalog")
+                fresh
             }
             else -> denied("Unknown catalog provider cannot authorize downloads")
         }
@@ -144,6 +174,14 @@ class CatalogSearchRepository internal constructor(private val transport: Catalo
         result.errors += checked.mapNotNull { it.second }
     }
 
+    private suspend fun searchAudius(query: String, result: ProviderResult) {
+        result.tracks += CatalogParsers.audius(transport.json(audiusSearchUrl(query))).take(30)
+    }
+
+    private suspend fun searchCcmixter(query: String, result: ProviderResult) {
+        result.tracks += CatalogParsers.ccmixter(transport.json(ccmixterSearchUrl(query))).take(30)
+    }
+
     private data class ProviderResult(
         val tracks: MutableList<CatalogTrack> = mutableListOf(),
         val errors: MutableList<String> = mutableListOf(),
@@ -184,6 +222,31 @@ class CatalogSearchRepository internal constructor(private val transport: Catalo
             return "https://api.openverse.org/v1/audio/".toHttpUrl().newBuilder()
                 .addPathSegment(id).addPathSegment("").addQueryParameter("format", "json").build()
         }
+
+        internal fun audiusSearchUrl(query: String): HttpUrl = "https://api.audius.co/v1/tracks/search".toHttpUrl().newBuilder()
+            .addQueryParameter("query", query).addQueryParameter("app_name", AUDIUS_APP_NAME)
+            .addQueryParameter("limit", "30").build()
+
+        internal fun audiusTrackUrl(id: String): HttpUrl = audiusTrackBase(id).build()
+
+        internal fun audiusStreamUrl(id: String): HttpUrl = audiusTrackBase(id).addPathSegment("stream").build()
+
+        private fun audiusTrackBase(id: String): HttpUrl.Builder {
+            if (!CatalogRights.validAudiusId(id)) throw CatalogException(CatalogError.POLICY, "Invalid Audius identifier")
+            return "https://api.audius.co/v1/tracks/".toHttpUrl().newBuilder()
+                .addPathSegment(id).addQueryParameter("app_name", AUDIUS_APP_NAME)
+        }
+
+        internal fun ccmixterSearchUrl(query: String): HttpUrl = "https://ccmixter.org/api/query".toHttpUrl().newBuilder()
+            .addQueryParameter("f", "json").addQueryParameter("search", query).addQueryParameter("limit", "30").build()
+
+        internal fun ccmixterUploadUrl(id: String): HttpUrl {
+            if (!CatalogRights.validUploadId(id)) throw CatalogException(CatalogError.POLICY, "Invalid ccMixter identifier")
+            return "https://ccmixter.org/api/query".toHttpUrl().newBuilder()
+                .addQueryParameter("f", "json").addQueryParameter("ids", id).addQueryParameter("limit", "1").build()
+        }
+
+        private const val AUDIUS_APP_NAME = "LocalTracklistPlus"
 
         private fun reviewedMatches(query: String): Boolean =
             (listOf("Chris Zabriskie", CatalogRights.ALBUM) + CatalogRights.reviewedTitles).any { it.contains(query, true) }

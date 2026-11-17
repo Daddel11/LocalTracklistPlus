@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -66,11 +67,31 @@ class RadioLibraryGenresTest {
         }
     }
 
-    private fun showRadio(onGenreChange: (String) -> Unit) {
+    @Test
+    fun somaFmDirectoryIsShownInTheDiscoverView() {
+        showRadio(onGenreChange = {})
+
+        val title = resources.getString(R.string.radio_somafm_title)
+        compose.onNode(verticalScroll).performScrollToNode(hasText(title))
+        compose.onNodeWithText(title).assertIsDisplayed()
+        compose.onNodeWithText(resources.getString(R.string.radio_somafm_hint)).assertIsDisplayed()
+    }
+
+    @Test
+    fun somaFmDirectoryIsHiddenInTheFavoritesView() {
+        showRadio(onGenreChange = {}, state = RadioUiState(showFavorites = true, isLoading = false))
+
+        compose.onAllNodesWithText(resources.getString(R.string.radio_somafm_title)).assertCountEquals(0)
+    }
+
+    private fun showRadio(
+        onGenreChange: (String) -> Unit,
+        state: RadioUiState = RadioUiState(isLoading = false),
+    ) {
         compose.setContent {
             MaterialTheme {
                 RadioScreen(
-                    state = RadioUiState(isLoading = false),
+                    state = state,
                     playbackState = PlaybackUiState(),
                     onQueryChange = {},
                     onGenreChange = onGenreChange,

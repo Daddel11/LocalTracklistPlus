@@ -137,6 +137,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         onToggleFavorite = radioViewModel::toggleFavorite,
                         onShowFavorites = radioViewModel::selectFavorites,
                         onTogglePlayPause = playbackViewModel::togglePlayPause,
+                        onSomaFmRetry = radioViewModel::retrySomaFm,
                     )
                 }
                 composable(AppRoute.Library.route) {

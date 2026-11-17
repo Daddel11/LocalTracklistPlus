@@ -22,6 +22,7 @@ object CatalogRights {
     const val ARTIST_GRANT = "https://chriszabriskie.com/use/"
     const val ARTIST_ALBUM = "https://chriszabriskie.com/honor/"
     const val BY_4 = "https://creativecommons.org/licenses/by/4.0/"
+    const val BY_SA_4 = "https://creativecommons.org/licenses/by-sa/4.0/"
     internal const val ALBUM = "I Am a Man Who Will Fight for Your Honor"
     internal val reviewedTitles = listOf(
         "Androids Always Escape",
@@ -36,26 +37,45 @@ object CatalogRights {
         "publicdomain/zero/1.0/", "licenses/by/3.0/", "licenses/by/4.0/",
         "licenses/by-sa/3.0/", "licenses/by-sa/4.0/",
     )
+    internal val reuseLicensePaths = licensePaths + listOf(
+        "licenses/by-nc/3.0/", "licenses/by-nc/4.0/",
+        "licenses/by-nc-sa/3.0/", "licenses/by-nc-sa/4.0/",
+    )
 
-    fun canonicalLicense(value: String): String? {
+    fun canonicalLicense(value: String): String? = canonical(value, licensePaths)
+
+    internal fun canonicalReuseLicense(value: String): String? = canonical(value, reuseLicensePaths)
+
+    private fun canonical(value: String, paths: List<String>): String? {
         if (value != value.trim() || value.any { it <= ' ' || it == '\\' }) return null
         val url = value.toHttpUrlOrNull() ?: return null
         if (url.scheme !in setOf("http", "https") || url.host !in setOf("creativecommons.org", "www.creativecommons.org") ||
             url.port != (if (url.isHttps) 443 else 80) || url.username.isNotEmpty() || url.password.isNotEmpty() ||
             '@' in value.substringAfter("://").substringBefore('/') || url.query != null || url.fragment != null
         ) return null
-        val path = licensePaths.firstOrNull { url.encodedPath == "/$it" || url.encodedPath == "/${it.trimEnd('/')}" } ?: return null
+        val path = paths.firstOrNull { url.encodedPath == "/$it" || url.encodedPath == "/${it.trimEnd('/')}" } ?: return null
         return "https://creativecommons.org/$path"
+    }
+
+    internal fun audiusLicense(label: String): String? = when (label.trim()) {
+        "Attribution CC BY" -> BY_4
+        "Attribution ShareAlike CC BY-SA" -> BY_SA_4
+        else -> null
     }
 
     fun canVerifyOnDemand(track: CatalogTrack): Boolean =
         track.providerId == "openverse" && isAuthorized(track.copy(downloadAllowed = true))
 
     fun isAuthorized(track: CatalogTrack): Boolean {
-        if (!track.downloadAllowed || canonicalLicense(track.licenseUrl) != track.licenseUrl ||
+        val license = when (track.providerId) {
+            "ccmixter" -> canonicalReuseLicense(track.licenseUrl)
+            else -> canonicalLicense(track.licenseUrl)
+        }
+        val bytes = track.downloadBytes
+        val sizeBound = if (bytes == null) track.providerId == "audius" else bytes in 1..MAX_TRACK_BYTES
+        if (!track.downloadAllowed || license != track.licenseUrl || !sizeBound ||
             track.id != trackId(track.providerId, track.providerItemId, track.assetId) ||
             track.title.isBlank() || track.artist.isBlank() || track.attribution.isBlank() || track.durationMs !in 1..86_400_000 ||
-            track.downloadBytes?.let { it !in 1..MAX_TRACK_BYTES } != false ||
             !RadioUrlPolicy.isSafePublicHttps(track.streamUrl) || !RadioUrlPolicy.isSafePublicHttps(track.sourceUrl)
         ) return false
         return when (track.providerId) {
@@ -66,6 +86,14 @@ object CatalogRights {
                 track.sourceUrl == "https://archive.org/details/$REVIEWED_ARCHIVE_ITEM"
             "openverse" -> track.isPreview && validOpenverseId(track.providerItemId) &&
                 freesoundBinding(track.sourceUrl, track.streamUrl, track.artist)?.soundId == track.assetId &&
+                track.permissionEvidenceUrl == track.sourceUrl && track.md5 == null
+            "audius" -> !track.isPreview && validAudiusId(track.providerItemId) && validAudiusAsset(track.assetId) &&
+                (track.licenseUrl == BY_4 || track.licenseUrl == BY_SA_4) && track.downloadBytes == null &&
+                track.streamUrl == CatalogSearchRepository.audiusStreamUrl(track.providerItemId).toString() &&
+                validAudiusPermalink(track.sourceUrl) && track.permissionEvidenceUrl == track.sourceUrl && track.md5 == null
+            "ccmixter" -> !track.isPreview && validUploadId(track.providerItemId) &&
+                validFilename(track.assetId) && track.assetId.endsWith(".mp3", true) &&
+                ccmixterStream(track.streamUrl, track.assetId) && ccmixterPage(track.sourceUrl, track.providerItemId) &&
                 track.permissionEvidenceUrl == track.sourceUrl && track.md5 == null
             else -> false
         }
@@ -80,6 +108,32 @@ object CatalogRights {
     internal fun validItem(value: String): Boolean = Regex("[A-Za-z0-9][A-Za-z0-9_.-]{0,199}").matches(value) && ".." !in value
     internal fun validFilename(value: String): Boolean = value.length in 1..512 && !value.startsWith('.') &&
         ".." !in value && value.none { it <= ' ' && it != ' ' || it in "\\/%?#:" || it == '\u007f' }
+    internal fun validAudiusId(value: String): Boolean = Regex("[A-Za-z0-9]{1,32}").matches(value)
+    internal fun validAudiusAsset(value: String): Boolean = Regex("[A-Za-z0-9-]{1,128}").matches(value)
+    internal fun validUploadId(value: String): Boolean = Regex("[1-9][0-9]{0,9}").matches(value)
+
+    internal fun validAudiusPermalink(value: String): Boolean {
+        if (!RadioUrlPolicy.isSafePublicHttps(value)) return false
+        val url = value.toHttpUrlOrNull() ?: return false
+        return url.host == "audius.co" && url.port == 443 && url.query == null && url.fragment == null &&
+            url.pathSegments.size == 2 && url.pathSegments.all { it.isNotEmpty() }
+    }
+
+    internal fun ccmixterStream(value: String, asset: String): Boolean {
+        if (!RadioUrlPolicy.isSafePublicHttps(value)) return false
+        val url = value.toHttpUrlOrNull() ?: return false
+        val segments = url.pathSegments
+        return url.host == "ccmixter.org" && url.port == 443 && url.query == null && url.fragment == null &&
+            segments.size == 3 && segments[0] == "content" && segments[2] == asset
+    }
+
+    internal fun ccmixterPage(value: String, id: String): Boolean {
+        if (!RadioUrlPolicy.isSafePublicHttps(value)) return false
+        val url = value.toHttpUrlOrNull() ?: return false
+        val segments = url.pathSegments
+        return url.host == "ccmixter.org" && url.port == 443 && url.query == null && url.fragment == null &&
+            segments.size == 3 && segments[0] == "files" && segments[2] == id
+    }
 
     internal fun reviewedAsset(asset: String, title: String): Boolean {
         val index = reviewedTitles.indexOf(title)

@@ -11,6 +11,8 @@ data class RadioStation(
     val codec: String = "",
     val bitrate: Int = 0,
     val lastCheckOk: Boolean = true,
+    val listeners: Int = 0,
+    val lastPlaying: String = "",
 ) {
     val mediaId: String get() = "radio:$stationUuid"
 }

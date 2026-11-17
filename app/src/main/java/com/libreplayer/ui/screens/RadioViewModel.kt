@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.libreplayer.data.radio.RadioFilters
 import com.libreplayer.data.radio.RadioRepository
 import com.libreplayer.data.radio.RadioStation
+import com.libreplayer.data.radio.SomaFmApi
 import com.libreplayer.media.playback.PlaybackConnection
 import java.net.URI
 import kotlinx.coroutines.CancellationException
@@ -32,6 +33,10 @@ data class RadioUiState(
     val playbackFailed: Boolean = false,
     val favoritesFailed: Boolean = false,
     val resolvingStationUuid: String? = null,
+    val somaFmStations: List<RadioStation> = emptyList(),
+    val somaFmLoading: Boolean = false,
+    val somaFmFailed: Boolean = false,
+    val somaFmLoaded: Boolean = false,
 ) {
     val visibleStations: List<RadioStation>
         get() = if (!showFavorites) stations else favorites.filter { station ->
@@ -57,6 +62,7 @@ class RadioViewModel(
     val state: StateFlow<RadioUiState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
     private var playJob: Job? = null
+    private var somaFmJob: Job? = null
     private val favoriteMutex = Mutex()
 
     init {
@@ -72,6 +78,7 @@ class RadioViewModel(
             }
         }
         load()
+        if (!state.value.showFavorites) loadSomaFm()
     }
 
     fun setQuery(query: String) = changeFilters(state.value.filters.copy(query = query), debounce = true)
@@ -86,10 +93,13 @@ class RadioViewModel(
 
     fun refresh() = load()
 
+    fun retrySomaFm() = loadSomaFm(force = true)
+
     fun selectFavorites(show: Boolean) {
         if (state.value.showFavorites == show) return
         mutableState.update { it.copy(showFavorites = show) }
         load()
+        if (!show) loadSomaFm()
     }
 
     private fun changeFilters(filters: RadioFilters, debounce: Boolean = false) {
@@ -125,6 +135,29 @@ class RadioViewModel(
             } catch (_: Exception) {
                 currentCoroutineContext().ensureActive()
                 mutableState.update { it.copy(isLoading = false, searchFailed = true) }
+            }
+        }
+    }
+
+    private fun loadSomaFm(force: Boolean = false) {
+        if (somaFmJob?.isActive == true || (!force && state.value.somaFmLoaded)) return
+        mutableState.update { it.copy(somaFmLoading = true, somaFmFailed = false) }
+        somaFmJob = viewModelScope.launch {
+            try {
+                val stations = repo.somaFmStations()
+                currentCoroutineContext().ensureActive()
+                mutableState.update {
+                    it.copy(
+                        somaFmStations = stations.distinctBy(RadioStation::stationUuid).take(SomaFmApi.MAX_CHANNELS),
+                        somaFmLoading = false,
+                        somaFmLoaded = true,
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                currentCoroutineContext().ensureActive()
+                mutableState.update { it.copy(somaFmLoading = false, somaFmFailed = true) }
             }
         }
     }

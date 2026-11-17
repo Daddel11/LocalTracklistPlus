@@ -56,6 +56,7 @@ fun RadioScreen(
     onToggleFavorite: (RadioStation) -> Unit,
     onShowFavorites: (Boolean) -> Unit,
     onTogglePlayPause: () -> Unit,
+    onSomaFmRetry: () -> Unit = {},
 ) {
     Surface(color = MaterialTheme.colorScheme.background) {
         LazyColumn(
@@ -218,6 +219,46 @@ fun RadioScreen(
                     onToggleFavorite = { onToggleFavorite(station) },
                 )
             }
+            if (!state.showFavorites) {
+                item {
+                    Text(
+                        stringResource(R.string.radio_somafm_title),
+                        modifier = Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        stringResource(R.string.radio_somafm_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (state.somaFmLoading) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            RadioNotice(R.string.radio_somafm_loading)
+                        }
+                    }
+                }
+                if (state.somaFmFailed) {
+                    item {
+                        RadioNotice(R.string.radio_somafm_error, isError = true)
+                        TextButton(onClick = onSomaFmRetry) { Text(stringResource(R.string.radio_retry)) }
+                    }
+                }
+                items(state.somaFmStations, key = { "somafm:${it.stationUuid}" }) { station ->
+                    val isCurrent = playbackState.currentRadio?.stationUuid == station.stationUuid
+                    SomaFmStationCard(
+                        station = station,
+                        isFavorite = state.favorites.any { it.stationUuid == station.stationUuid },
+                        isCurrent = isCurrent,
+                        showsPause = isCurrent && playbackState.primaryControlShowsPause,
+                        isResolving = state.resolvingStationUuid == station.stationUuid,
+                        onPlay = { if (isCurrent) onTogglePlayPause() else onPlay(station) },
+                        onToggleFavorite = { onToggleFavorite(station) },
+                    )
+                }
+            }
             item { RadioNotice(R.string.radio_https_only) }
         }
     }
@@ -315,6 +356,79 @@ private fun RadioStationCard(
                 }
             }
             if (isResolving) RadioNotice(R.string.radio_resolving)
+        }
+    }
+}
+
+@Composable
+private fun SomaFmStationCard(
+    station: RadioStation,
+    isFavorite: Boolean,
+    isCurrent: Boolean,
+    showsPause: Boolean,
+    isResolving: Boolean,
+    onPlay: () -> Unit,
+    onToggleFavorite: () -> Unit,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = if (isCurrent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    station.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val separator = stringResource(R.string.radio_metadata_separator)
+                val listeners = if (station.listeners > 0) {
+                    stringResource(R.string.radio_somafm_listeners, station.listeners)
+                } else {
+                    ""
+                }
+                val lastPlaying = if (station.lastPlaying.isNotBlank()) {
+                    stringResource(R.string.radio_somafm_last_playing, station.lastPlaying)
+                } else {
+                    ""
+                }
+                val metadata = listOf(station.tags, listeners, lastPlaying)
+                    .filter(String::isNotBlank)
+                    .joinToString(separator)
+                if (metadata.isNotEmpty()) {
+                    Text(
+                        metadata,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (isCurrent) Text(stringResource(R.string.radio_current), style = MaterialTheme.typography.labelSmall)
+            }
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    stringResource(
+                        if (isFavorite) R.string.radio_remove_favorite else R.string.radio_add_favorite,
+                        station.name,
+                    ),
+                )
+            }
+            IconButton(onClick = onPlay, enabled = !isResolving, modifier = Modifier.size(48.dp)) {
+                if (isResolving) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        if (showsPause) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        stringResource(if (showsPause) R.string.radio_pause else R.string.radio_play, station.name),
+                    )
+                }
+            }
         }
     }
 }

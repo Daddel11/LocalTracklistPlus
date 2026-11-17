@@ -1,11 +1,23 @@
 package com.libreplayer.ui.screens
 
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.ViewModelStore
 import com.google.common.truth.Truth.assertThat
+import com.libreplayer.data.radio.RadioBrowserApi
+import com.libreplayer.data.radio.RadioError
+import com.libreplayer.data.radio.RadioException
 import com.libreplayer.data.radio.RadioFilters
+import com.libreplayer.data.radio.RadioNetwork
+import com.libreplayer.data.radio.RadioRedirectInterceptor
 import com.libreplayer.data.radio.RadioRepository
 import com.libreplayer.data.radio.RadioSearchResult
 import com.libreplayer.data.radio.RadioStation
+import com.libreplayer.data.radio.SomaFmApi
+import com.libreplayer.data.radio.SomaFmJson
+import com.libreplayer.data.radio.SomaFmPolicy
 import com.libreplayer.data.repository.PlaybackUiState
 import com.libreplayer.media.playback.PlaybackConnection
 import io.mockk.Runs
@@ -20,7 +32,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -29,7 +45,15 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -50,6 +74,7 @@ class RadioViewModelTest {
         every { playback.playbackRequestRevision } returns 0L
         coEvery { repo.search(any()) } returns RadioSearchResult(emptyList())
         coEvery { repo.resolve(any()) } answers { firstArg() }
+        coEvery { repo.somaFmStations() } returns emptyList()
         coEvery { repo.toggleFavorite(any()) } just Runs
         coEvery { playback.playRadio(any()) } just Runs
         every { playback.togglePlayPause() } just Runs
@@ -277,6 +302,7 @@ class RadioViewModelTest {
         assertThat(vm.state.value.favorites).containsExactly(saved)
         assertThat(vm.state.value.visibleStations).containsExactly(saved)
         coVerify(exactly = 0) { repo.search(any()) }
+        coVerify(exactly = 0) { repo.somaFmStations() }
 
         val updated = station("updated")
         favorites.value = listOf(updated)
@@ -286,6 +312,89 @@ class RadioViewModelTest {
         coVerify(exactly = 0) { repo.search(any()) }
     }
 
+    @Test
+    fun `somafm load failure stays isolated from radio browser results`() = runTest {
+        val browserStation = station("browser")
+        coEvery { repo.search(any()) } returns RadioSearchResult(listOf(browserStation))
+        coEvery { repo.somaFmStations() } throws IOException("offline")
+        val vm = viewModel()
+        runCurrent()
+
+        assertThat(vm.state.value.stations).containsExactly(browserStation)
+        assertThat(vm.state.value.searchFailed).isFalse()
+        assertThat(vm.state.value.somaFmFailed).isTrue()
+        assertThat(vm.state.value.somaFmStations).isEmpty()
+        assertThat(vm.state.value.somaFmLoading).isFalse()
+        coVerify(exactly = 1) { repo.search(any()) }
+        coVerify(exactly = 1) { repo.somaFmStations() }
+    }
+
+    @Test
+    fun `radio browser failure keeps somafm stations untouched`() = runTest {
+        val soma = somaStation()
+        coEvery { repo.search(any()) } throws IOException("offline")
+        coEvery { repo.somaFmStations() } returns listOf(soma)
+        val vm = viewModel()
+        runCurrent()
+
+        assertThat(vm.state.value.searchFailed).isTrue()
+        assertThat(vm.state.value.somaFmFailed).isFalse()
+        assertThat(vm.state.value.somaFmStations).containsExactly(soma)
+        assertThat(vm.state.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `somafm loads once and retry refreshes only somafm`() = runTest {
+        coEvery { repo.somaFmStations() } returns listOf(somaStation())
+        val vm = viewModel()
+        runCurrent()
+        assertThat(vm.state.value.somaFmStations).hasSize(1)
+
+        vm.selectFavorites(true)
+        runCurrent()
+        vm.selectFavorites(false)
+        runCurrent()
+        coVerify(exactly = 1) { repo.somaFmStations() }
+
+        vm.retrySomaFm()
+        runCurrent()
+        coVerify(exactly = 2) { repo.somaFmStations() }
+        coVerify(exactly = 2) { repo.search(any()) }
+    }
+
+    @Test
+    fun `somafm retry recovers after a failed load`() = runTest {
+        coEvery { repo.somaFmStations() } throws IOException("offline")
+        val vm = viewModel()
+        runCurrent()
+        assertThat(vm.state.value.somaFmFailed).isTrue()
+
+        coEvery { repo.somaFmStations() } returns listOf(somaStation())
+        vm.retrySomaFm()
+        runCurrent()
+
+        assertThat(vm.state.value.somaFmFailed).isFalse()
+        assertThat(vm.state.value.somaFmStations).hasSize(1)
+    }
+
+    @Test
+    fun `somafm stations play through resolve and toggle like radio browser`() = runTest {
+        val soma = somaStation()
+        coEvery { repo.resolve(soma) } returns soma.copy(streamUrl = "https://ice6.somafm.com/groovesalad-128-aac")
+        val vm = viewModel()
+        runCurrent()
+
+        vm.play(soma)
+        runCurrent()
+        coVerify(exactly = 1) { playback.playRadio(match { it.stationUuid == soma.stationUuid }) }
+
+        playbackState.value = PlaybackUiState(currentRadio = soma)
+        vm.play(soma)
+        runCurrent()
+        verify(exactly = 1) { playback.togglePlayPause() }
+        coVerify(exactly = 1) { repo.resolve(any()) }
+    }
+
     private fun viewModel() = RadioViewModel(repo, playback).also { store.put("radio", it) }
 
     private fun station(id: String) = RadioStation(
@@ -293,4 +402,222 @@ class RadioViewModelTest {
         name = "Station $id",
         streamUrl = "https://example.org/$id",
     )
+
+    private fun somaStation() = RadioStation(
+        stationUuid = "somafm:groovesalad",
+        name = "Groove Salad",
+        streamUrl = "https://api.somafm.com/gsaac.pls",
+        homepage = "https://somafm.com/groovesalad/",
+        countryCode = "US",
+        language = "english",
+        tags = "ambient, electronica",
+        codec = "AAC",
+        bitrate = 128,
+        listeners = 1234,
+        lastPlaying = "Artist - Track",
+    )
+}
+
+
+class SomaFmDataTest {
+    @Test
+    fun `channels fixture maps prefixed stations with genre and chosen codec`() {
+        val stations = SomaFmJson.parseChannels(CHANNELS_FIXTURE)
+
+        assertEquals(2, stations.size)
+        val groove = stations.first { it.stationUuid == "somafm:groovesalad" }
+        assertEquals("Groove Salad", groove.name)
+        assertEquals("ambient, electronica, house", groove.tags)
+        assertEquals("https://api.somafm.com/gsaac.pls", groove.streamUrl)
+        assertEquals("AAC", groove.codec)
+        assertEquals(128, groove.bitrate)
+        assertEquals("https://somafm.com/groovesalad/", groove.homepage)
+        assertEquals("US", groove.countryCode)
+        assertEquals("english", groove.language)
+        assertEquals(1234, groove.listeners)
+        assertEquals("Artist - Track", groove.lastPlaying)
+        assertEquals("radio:somafm:groovesalad", groove.mediaId)
+        assertThat(groove.lastCheckOk).isTrue()
+        val defcon = stations.first { it.stationUuid == "somafm:defcon" }
+        assertEquals("MP3", defcon.codec)
+        assertEquals(128, defcon.bitrate)
+    }
+
+    @Test
+    fun `channels are capped and unsafe entries are dropped`() {
+        val generated = (0 until 70).joinToString(",", "{\"channels\":[", "]}") { index ->
+            """{"id":"channel$index","title":"Channel $index","playlists":[{"url":"https://api.somafm.com/channel$index.pls","format":"mp3","quality":"highest"}]}"""
+        }
+        assertEquals(60, SomaFmJson.parseChannels(generated).size)
+        assertThat(SomaFmJson.parseChannels("""{"channels":[{"id":"bad host","title":"x","playlists":[]}]}""")).isEmpty()
+        assertThat(SomaFmJson.parseChannels("""{"channels":[{"id":"groovesalad","title":"x","playlists":[{"url":"https://evil.example.org/a.pls","format":"mp3","quality":"highest"}]}]}""")).isEmpty()
+        assertThrows(RadioException::class.java) { SomaFmJson.parseChannels("not json") }
+        assertThrows(RadioException::class.java) { SomaFmJson.parseChannels("x".repeat(1024 * 1024 + 1)) }
+    }
+
+    @Test
+    fun `playlist parsing takes file one across multiple entries and crlf`() {
+        val body = "[playlist]\r\nnumberofentries=2\r\nFile1=https://ice6.somafm.com/groovesalad-128-mp3\r\nTitle1=SomaFM: Groove Salad\r\nLength1=-1\r\nFile2=https://ice1.somafm.com/other\r\n"
+        assertEquals("https://ice6.somafm.com/groovesalad-128-mp3", SomaFmJson.parsePlaylist(body))
+        assertEquals("https://ice1.somafm.com/x", SomaFmJson.parsePlaylist("[playlist]\nFile1 = https://ice1.somafm.com/x\n"))
+    }
+
+    @Test
+    fun `playlist parsing rejects insecure foreign ambiguous and malformed entries`() {
+        listOf(
+            "http://ice1.somafm.com/groovesalad-128-mp3",
+            "https://ice1.somafm.com.evil.tld/groovesalad-128-mp3",
+            "https://evil-somafm.com/groovesalad-128-mp3",
+            "https://ice7.somafm.com/groovesalad-128-mp3",
+            "https://ice1.somafm.com/groovesalad-128-mp3?token=1",
+            "https://user:secret@ice1.somafm.com/groovesalad-128-mp3",
+            "https://ice1.somafm.com/groovesalad-128-mp3#fragment",
+        ).forEach { url ->
+            assertEquals(url, RadioError.POLICY, assertThrows(RadioException::class.java) {
+                SomaFmJson.parsePlaylist(playlist(url))
+            }.error)
+        }
+        listOf("<html>nope</html>", "[playlist]\nFile2=https://ice1.somafm.com/x\n", "[playlist]\nFile1=\n", "").forEach { body ->
+            assertThrows(RadioException::class.java) { SomaFmJson.parsePlaylist(body) }
+        }
+    }
+
+    @Test
+    fun `soma api urls are pinned to the soma hosts`() {
+        listOf(
+            "http://api.somafm.com/channels.json",
+            "https://api.somafm.com.evil.tld/channels.json",
+            "https://evil-somafm.com/channels.json",
+            "https://api.somafm.com/other.txt",
+            "https://api.somafm.com/channels.json?token=1",
+            "https://user:secret@api.somafm.com/channels.json",
+        ).forEach { url ->
+            assertThrows(url, RadioException::class.java) { SomaFmPolicy.requireApiUrl(url) }
+        }
+        assertEquals("https://api.somafm.com/channels.json", SomaFmPolicy.requireApiUrl("https://api.somafm.com/channels.json").toString())
+        assertEquals("https://api.somafm.com/x.pls", SomaFmPolicy.requirePlaylistUrl("https://api.somafm.com/x.pls").toString())
+    }
+
+    @Test
+    fun `soma client allows playlist text only from the soma api host`() = runTest {
+        val client = RadioNetwork.createSomaFmClient().newBuilder().addInterceptor { chain ->
+            response(chain.request(), PLAYLIST_FIXTURE, "text/plain")
+        }.build()
+
+        val resolved = SomaFmApi(client).resolve(somaStation())
+
+        assertEquals("https://ice6.somafm.com/groovesalad-128-aac", resolved.streamUrl)
+        assertEquals("somafm:groovesalad", resolved.stationUuid)
+        assertEquals("AAC", resolved.codec)
+    }
+
+    @Test
+    fun `soma client rejects foreign hosts before any request`() {
+        listOf(
+            "https://example.org/directory",
+            "https://example.org/directory.pls",
+            "https://evil.somafm.com/directory",
+            "https://ice1.somafm.com.evil.tld/directory",
+        ).forEach { url ->
+            val chain = mockk<Interceptor.Chain>()
+            every { chain.request() } returns Request.Builder().url(url).build()
+            every { chain.proceed(any()) } throws AssertionError("Foreign hosts must never be contacted")
+            assertEquals(url, RadioError.POLICY, assertThrows(RadioException::class.java) {
+                RadioRedirectInterceptor(somaFmApi = true).intercept(chain)
+            }.error)
+        }
+    }
+
+    @Test
+    fun `soma client rejects markup and m3u bodies from the api host`() {
+        listOf("<html>nope</html>", "#EXTM3U\nhttps://ice1.somafm.com/x").forEach { body ->
+            val chain = mockk<Interceptor.Chain>()
+            every { chain.request() } returns Request.Builder().url("https://api.somafm.com/channels.json").build()
+            every { chain.proceed(any()) } answers {
+                Response.Builder().request(firstArg()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .header("Content-Type", "text/plain").body(body.toResponseBody()).build()
+            }
+            assertEquals(body, RadioError.POLICY, assertThrows(RadioException::class.java) {
+                RadioRedirectInterceptor(somaFmApi = true).intercept(chain)
+            }.error)
+        }
+    }
+
+    @Test
+    fun `repository keeps somafm favorites and resolves without the radio browser api`() = runTest {
+        val context = mockk<Context>()
+        val browser = mockk<RadioBrowserApi>()
+        val somafm = mockk<SomaFmApi>()
+        val station = somaStation()
+        val resolved = station.copy(streamUrl = "https://ice6.somafm.com/groovesalad-128-aac")
+        coEvery { somafm.resolve(any()) } returns resolved
+        val repository = RadioRepository(
+            context = context, api = browser, dataStore = SomaFmPreferences(), somaFm = somafm,
+        )
+
+        repository.toggleFavorite(station)
+        assertEquals(listOf(station), repository.favorites.first())
+        assertEquals(resolved, repository.resolve(station))
+        assertEquals(listOf(resolved), repository.favorites.first())
+        coVerify(exactly = 1) { somafm.resolve(station) }
+        coVerify(exactly = 0) { browser.resolve(any()) }
+        coVerify(exactly = 0) { browser.search(any()) }
+    }
+
+    @Test
+    fun `somafm resolve failure never falls back to the playlist handle`() = runTest {
+        val context = mockk<Context>()
+        val browser = mockk<RadioBrowserApi>()
+        val somafm = mockk<SomaFmApi>()
+        val station = somaStation()
+        coEvery { somafm.resolve(any()) } throws RadioException(RadioError.NETWORK, "Offline")
+        val repository = RadioRepository(
+            context = context, api = browser, dataStore = SomaFmPreferences(), somaFm = somafm,
+        )
+
+        try {
+            repository.resolve(station)
+            throw AssertionError("Playlist handles must never be played directly")
+        } catch (error: RadioException) {
+            assertEquals(RadioError.NETWORK, error.error)
+        }
+        coVerify(exactly = 0) { browser.resolve(any()) }
+    }
+
+    private fun somaStation() = RadioStation(
+        stationUuid = "somafm:groovesalad",
+        name = "Groove Salad",
+        streamUrl = "https://api.somafm.com/gsaac.pls",
+        homepage = "https://somafm.com/groovesalad/",
+        countryCode = "US",
+        language = "english",
+        tags = "ambient, electronica, house",
+        codec = "AAC",
+        bitrate = 128,
+        listeners = 1234,
+        lastPlaying = "Artist - Track",
+    )
+
+    private fun playlist(url: String) = "[playlist]\nFile1=$url\n"
+
+    private fun response(request: Request, body: String, contentType: String): Response = Response.Builder()
+        .request(request).protocol(Protocol.HTTP_1_1).code(200).message("Fixture")
+        .header("Content-Type", contentType).body(body.toResponseBody()).build()
+
+    private class SomaFmPreferences : DataStore<Preferences> {
+        private val state = MutableStateFlow(emptyPreferences())
+        private val mutex = Mutex()
+        override val data: Flow<Preferences> = state
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences = mutex.withLock {
+            transform(state.value).also { state.value = it }
+        }
+    }
+
+    private companion object {
+        const val CHANNELS_FIXTURE = """{"channels":[
+            {"id":"groovesalad","title":"Groove Salad","description":"A nicely chilled plate","genre":"ambient|electronica|house","dj":"","image":"https://somafm.com/img/groovesalad120.png","largeimage":"","playlists":[{"url":"https://api.somafm.com/groovesalad.pls","format":"mp3","quality":"high"},{"url":"https://api.somafm.com/gsaac.pls","format":"aac","quality":"highest"},{"url":"https://api.somafm.com/gslow.pls","format":"mp3","quality":"low"}],"listeners":1234,"lastPlaying":"Artist - Track"},
+            {"id":"defcon","title":"DEF CON Radio","description":"Music for hacking","genre":"electronic","dj":"","image":"","largeimage":"","playlists":[{"url":"https://api.somafm.com/defcon.pls","format":"mp3","quality":"highest"}],"listeners":42,"lastPlaying":""}
+            ]}"""
+        const val PLAYLIST_FIXTURE = "[playlist]\nnumberofentries=1\nFile1=https://ice6.somafm.com/groovesalad-128-aac\nTitle1=SomaFM: Groove Salad\nLength1=-1\n"
+    }
 }

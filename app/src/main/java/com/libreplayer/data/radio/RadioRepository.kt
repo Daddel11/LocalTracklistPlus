@@ -25,6 +25,7 @@ class RadioRepository(
     context: Context,
     private val api: RadioBrowserApi = RadioBrowserApi(),
     private val dataStore: DataStore<Preferences> = context.applicationContext.radioDataStore,
+    private val somaFm: SomaFmApi = SomaFmApi(),
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     val favorites: Flow<List<RadioStation>> = dataStore.data.map {
@@ -71,9 +72,20 @@ class RadioRepository(
         Unit
     }
 
+    suspend fun somaFmStations(): List<RadioStation> = withContext(Dispatchers.IO) {
+        requireStreamingPolicy()
+        somaFm.stations().also { currentCoroutineContext().ensureActive() }
+    }
+
     suspend fun resolve(station: RadioStation): RadioStation = withContext(Dispatchers.IO) {
         requireStreamingPolicy()
         val valid = RadioJson.validateStation(station)
+        if (valid.stationUuid.startsWith(RadioJson.SOMA_FM_PREFIX)) {
+            val resolved = somaFm.resolve(valid)
+            currentCoroutineContext().ensureActive()
+            persistResolved(resolved)
+            return@withContext resolved
+        }
         val resolved = try {
             api.resolve(valid)
         } catch (error: RadioException) {
@@ -82,13 +94,17 @@ class RadioRepository(
             return@withContext valid
         }
         currentCoroutineContext().ensureActive()
+        persistResolved(resolved)
+        resolved
+    }
+
+    private suspend fun persistResolved(resolved: RadioStation) {
         dataStore.edit { saved ->
             val stations = readStations(saved[FAVORITES], MAX_FAVORITES)
             if (stations.any { it.stationUuid == resolved.stationUuid }) {
                 saved[FAVORITES] = RadioJson.encodeStations(stations.map { if (it.stationUuid == resolved.stationUuid) resolved else it })
             }
         }
-        resolved
     }
 
     private fun requireStreamingPolicy() {

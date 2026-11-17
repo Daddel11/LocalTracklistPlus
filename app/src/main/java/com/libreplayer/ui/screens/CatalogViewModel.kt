@@ -66,7 +66,7 @@ class CatalogViewModel(
     }
 
     fun setProvider(providerId: String?) {
-        require(providerId == null || providerId == "archive" || providerId == "openverse")
+        require(providerId == null || providerId in setOf("archive", "openverse", "audius", "ccmixter"))
         if (providerId == state.value.providerId) return
         mutableState.update { it.copy(providerId = providerId) }
         load()

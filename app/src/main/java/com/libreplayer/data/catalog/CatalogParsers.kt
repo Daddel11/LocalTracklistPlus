@@ -2,6 +2,7 @@ package com.libreplayer.data.catalog
 
 import java.util.Locale
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -11,6 +12,15 @@ internal object CatalogParsers {
             throw CatalogException(CatalogError.TOO_LARGE, "Catalog response exceeds size limit")
         }
         return try { JSONObject(body) } catch (_: JSONException) {
+            throw CatalogException(CatalogError.INVALID_RESPONSE, "Invalid catalog JSON response")
+        }
+    }
+
+    fun arrayJson(body: String): JSONArray {
+        if (body.toByteArray(Charsets.UTF_8).size > CatalogHttp.MAX_JSON_BYTES) {
+            throw CatalogException(CatalogError.TOO_LARGE, "Catalog response exceeds size limit")
+        }
+        return try { JSONArray(body) } catch (_: JSONException) {
             throw CatalogException(CatalogError.INVALID_RESPONSE, "Invalid catalog JSON response")
         }
     }
@@ -126,6 +136,98 @@ internal object CatalogParsers {
         )
     }
 
+    fun audius(body: String): List<CatalogTrack> {
+        val data = objectJson(body).optJSONArray("data")
+            ?: invalid("Audius search results are invalid")
+        return (0 until minOf(data.length(), 30)).mapNotNull { audiusTrack(data.optJSONObject(it)) }.distinctBy { it.id }
+    }
+
+    fun audiusTrack(item: JSONObject?): CatalogTrack? {
+        if (item == null) return null
+        val id = item.text("id")
+        if (!CatalogRights.validAudiusId(id) || item.opt("is_streamable") != true || item.opt("is_available") == false ||
+            listOf("is_stream_gated", "is_unlisted", "is_delete").any { item.opt(it) == true }
+        ) return null
+        val title = item.text("title").clean(240)
+        val artist = item.optJSONObject("user")?.text("name").orEmpty().clean(200)
+        if (title.isBlank() || artist.isBlank()) return null
+        val seconds = item.positiveLong("duration")?.takeIf { it <= 86_400 } ?: return null
+        val permalink = item.text("permalink")
+        if (!Regex("/[^/\\s\\\\?#@]{1,100}/[^/\\s\\\\?#@]{1,200}").matches(permalink)) return null
+        val source = "https://audius.co$permalink"
+        if (!CatalogRights.validAudiusPermalink(source)) return null
+        val label = item.text("license").clean(120)
+        val license = CatalogRights.audiusLicense(label)
+        val cid = item.text("track_cid").takeIf { Regex("[A-Za-z0-9]{16,128}").matches(it) }
+        val asset = cid ?: "id-$id"
+        val downloadFlag = item.optJSONObject("access")?.opt("download") == true
+        val downloadable = license != null && downloadFlag && item.opt("is_download_gated") != true
+        val note = if (license != null) {
+            "Audius lists $label without a license version; it is read as $license. " +
+                (if (downloadFlag) "The artist also enabled Audius downloads. "
+                else "The artist has not enabled Audius downloads, so offline copying stays disabled. ") +
+                "Fresh provider metadata and the same stream identity are required before every download."
+        } else {
+            "Audius lists ${if (label.isBlank()) "no license" else label}. access.download only marks that the artist enabled " +
+                "Audius downloads; it does not authorise offline copying. Offline use needs a recognised Creative Commons " +
+                "Attribution or ShareAlike license on the same track. Streaming only."
+        }
+        return CatalogTrack(
+            id = CatalogRights.trackId("audius", id, asset), providerId = "audius", providerItemId = id, assetId = asset,
+            title = title, artist = artist, album = "", durationMs = seconds * 1000,
+            streamUrl = CatalogSearchRepository.audiusStreamUrl(id).toString(), sourceUrl = source,
+            licenseUrl = license.orEmpty(),
+            attribution = "\"$title\" by $artist (Audius). " +
+                (if (license != null) "$label, interpreted as $license" else label.ifBlank { "No license declared" }) + ". $source",
+            permissionEvidenceUrl = source, downloadAllowed = downloadable, downloadBytes = null, md5 = null,
+            isPreview = false, genre = item.text("genre").clean(100), rightsNote = note,
+        )
+    }
+
+    fun ccmixter(body: String): List<CatalogTrack> {
+        val array = arrayJson(body)
+        return (0 until minOf(array.length(), 30)).mapNotNull { array.optJSONObject(it)?.let(::ccmixterUpload) }
+            .distinctBy { it.id }
+    }
+
+    fun ccmixterUpload(item: JSONObject): CatalogTrack? {
+        val id = item.positiveLong("upload_id")?.toString() ?: return null
+        val title = item.text("upload_name").clean(240)
+        val uploader = item.text("user_name").clean(200)
+        if (title.isBlank() || uploader.isBlank()) return null
+        val page = item.text("file_page_url")
+        if (!CatalogRights.ccmixterPage(page, id)) return null
+        val licenseUrl = CatalogRights.canonicalReuseLicense(item.text("license_url")) ?: return null
+        val licenseName = item.text("license_name").replace(Regex("\\s+"), " ").clean(160)
+        if (licenseName.isBlank()) return null
+        val files = item.optJSONArray("files") ?: return null
+        val mp3 = (0 until files.length()).mapNotNull { files.optJSONObject(it) }.singleOrNull { file ->
+            file.optJSONObject("file_format_info")?.text("mime_type") == "audio/mpeg" &&
+                CatalogRights.validFilename(file.text("file_name")) && file.text("file_name").endsWith(".mp3", true)
+        } ?: return null
+        val asset = mp3.text("file_name")
+        val stream = mp3.text("download_url")
+        if (!CatalogRights.ccmixterStream(stream, asset)) return null
+        val duration = duration(mp3.optJSONObject("file_format_info")?.text("ps").orEmpty())
+        val bytes = mp3.positiveLong("file_rawsize")
+        val realName = item.text("user_real_name").clean(200)
+        val artist = if (realName.isNotBlank() && realName != uploader) "$uploader ($realName)" else uploader
+        val nonCommercial = "/by-nc" in licenseUrl
+        val attribution = "\"$title\" by $artist. $licenseName. $licenseUrl $page" +
+            if (nonCommercial) " NonCommercial (NC): this recording may not be used commercially." else ""
+        val note = "ccMixter upload under $licenseName ($licenseUrl). File page: $page. " +
+            (if (nonCommercial) "The NonCommercial restriction applies to this recording. " else "") +
+            "Fresh ccMixter metadata and the same file identity are required before every download."
+        val tags = item.optJSONObject("upload_extra")?.text("usertags").orEmpty().ifBlank { item.text("upload_tags") }
+        return CatalogTrack(
+            id = CatalogRights.trackId("ccmixter", id, asset), providerId = "ccmixter", providerItemId = id, assetId = asset,
+            title = title, artist = artist, album = "", durationMs = duration, streamUrl = stream, sourceUrl = page,
+            licenseUrl = licenseUrl, attribution = attribution, permissionEvidenceUrl = page,
+            downloadAllowed = bytes != null && duration in 1..86_400_000L && bytes <= CatalogRights.MAX_TRACK_BYTES,
+            downloadBytes = bytes, md5 = null, isPreview = false, genre = genre(tags), rightsNote = note,
+        )
+    }
+
     fun verifyFreesound(track: CatalogTrack, html: String): CatalogTrack {
         val binding = CatalogRights.freesoundBinding(track.sourceUrl, track.streamUrl, track.artist)
             ?: denied("Freesound recording URL is not bound to the selected asset")
@@ -172,6 +274,15 @@ internal object CatalogParsers {
 
     private fun credit(id: String, artist: String): String =
         if (id == "186942" && artist == "benpm") "Benjamin Mastripolito (benpm), https://benpm.github.io" else artist
+
+    private fun genre(tags: String): String = tags.split(',').map { it.trim() }
+        .filter { it.length in 1..30 && it.all { character -> character.isLetterOrDigit() || character in " -_&/" } }
+        .filter { it.lowercase(Locale.ROOT) !in technicalTags }
+        .distinct().take(5).joinToString(", ").take(100)
+
+    private val technicalTags = setOf(
+        "media", "audio", "mp3", "flac", "wav", "ogg", "stereo", "mono", "ccplus", "non_commercial", "44k", "48k",
+    )
 
     private fun requireUnrestricted(vararg objects: JSONObject) {
         if (objects.any(::restricted)) denied("Catalog item is private, restricted, unavailable or not downloadable")

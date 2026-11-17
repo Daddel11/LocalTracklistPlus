@@ -42,6 +42,22 @@ object SourcePolicy {
             streaming = SourcePermission.ALLOWED,
             download = SourcePermission.ALLOWED,
         ),
+        SourceDescriptor(
+            sourceId = "audius",
+            evidenceUrl = "https://docs.audius.co/developers/api/",
+            notes = "Catalog transport capability only. Streaming is allowed for public streamable tracks. Offline copying requires the artist's Audius download flag plus a recognised Creative Commons license on the same track; access.download alone never authorises a download.",
+            lastReviewed = "2026-11-17",
+            streaming = SourcePermission.ALLOWED,
+            download = SourcePermission.ALLOWED,
+        ),
+        SourceDescriptor(
+            sourceId = "ccmixter",
+            evidenceUrl = "https://ccmixter.org/api/query",
+            notes = "Catalog transport capability only. Offline copying is limited to per-upload Creative Commons licenses that permit reuse, including BY-NC and BY-NC-SA; the NonCommercial restriction is carried in the attribution. NoDerivs and unknown licenses are denied.",
+            lastReviewed = "2026-11-17",
+            streaming = SourcePermission.ALLOWED,
+            download = SourcePermission.ALLOWED,
+        ),
     )
 
     fun descriptor(source: String): SourceDescriptor? = radioDescriptor.takeIf { source == it.sourceId }

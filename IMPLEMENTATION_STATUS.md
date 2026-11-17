@@ -1,6 +1,57 @@
 # LocalTracklist+ Implementation Status
 
-## Current Delivery - Electronic Genres, Radio Favorites, Open Catalog And Offline Playlists
+## Current Delivery - Four Catalog Providers And A Second Radio Directory
+
+Status: IMPLEMENTED AND TESTED, 2026-11-17. Installed in place on the connected CPH2797 phone.
+
+### Added
+
+- **Audius** (`audius`) in the overall search: public discovery API with `app_name`, full-length
+  streams, licence-aware downloads, fresh revalidation by track id before every download.
+- **ccMixter** (`ccmixter`) in the overall search: public query API, CC0/BY/BY-SA/BY-NC/BY-NC-SA
+  downloads with the NonCommercial restriction rendered in attribution and rights note.
+- **SomaFM** as a second, independent radio directory on the Radio screen: channel list from
+  `channels.json`, stream resolved from the official `.pls` to a pinned `ice1..6.somafm.com`
+  HTTPS URL, never touching the Radio Browser click counter. Favorites work for SomaFM stations.
+- Provider chips now read Alle / Internet Archive / Openverse / Audius / ccMixter.
+
+### Decisions And Limits
+
+- Audius `access.download` is the artist's upload switch, not a licence. Download therefore also
+  requires a recognised Creative Commons licence; "All rights reserved" tracks stream but never
+  download. Audius has no byte size in its payload, so the 25 MiB cap is enforced while streaming
+  and the "unknown size" rule is scoped to the other providers.
+- ccMixter returns `Content-Type: text/plain` for JSON; that is accepted only for `ccmixter.org`
+  and only inside the catalog client. `.pls` stays rejected globally; SomaFM has its own
+  host-scoped policy that accepts it only on `api.somafm.com`.
+- New hosts in the allowlists: `api.audius.co`, `ccmixter.org`, `api.somafm.com`,
+  `ice1..ice6.somafm.com`. Everything else, including lookalike hosts, is rejected by tests.
+- **Not implemented, deliberately:** Bandcamp, SoundCloud and YouTube Music via NewPipeExtractor
+  (terms-of-service exposure, YouTube downloads not generally permitted, GPLv3 linkage);
+  Free Music Archive (public API retired); Musopen (no usable public API); Jamendo (requires a
+  `client_id`). No scraping was added.
+
+### Verification
+
+- `testDebugUnitTest lintDebug assembleDebug :app:assembleDebugAndroidTest` passed (offline,
+  no daemon). 343 JVM unit tests in 50 suites, 0 failures; lint 0 errors.
+- Two provider test defects were found and fixed during acceptance: ccMixter genre came from
+  technical tags (now prefers `usertags` and skips media/codec tags, up to five tags), and a
+  SomaFM test asserted constructor validation that does not exist.
+- Physical phone, `ProviderLiveTest` passed: Audius search returned tracks with
+  `api.audius.co/v1/tracks/...` stream URLs and correctly refused an all-rights-reserved
+  download; ccMixter returned `ccmixter.org/content/...` MP3s; SomaFM returned `somafm:` stations
+  and resolved the first one to an `ice*.somafm.com` HTTPS stream.
+- Physical phone, live Radio Browser playback regression passed after the SomaFM change.
+- Android instrumentation suite was not re-run on the emulator for this delivery (it was shut
+  down after the previous one); the new Android tests compile and the live phone tests above ran.
+
+### Delivery
+
+- APK: `Downloads/LocalTracklistPlus-sources.apk`.
+- Source: branch `feature/localtracklist-plus`.
+
+## Previous Delivery - Electronic Genres, Radio Favorites, Open Catalog And Offline Playlists
 
 Status: IMPLEMENTED AND TESTED, 2026-11-17. Installed on the connected CPH2797 Android phone
 as an in-place update; existing app data was preserved and migrated 2 -> 3.

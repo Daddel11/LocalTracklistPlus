@@ -100,7 +100,9 @@ class RadioBrowserApi(
     }
 }
 
-private suspend fun Call.awaitBody(): String = suspendCancellableCoroutine { continuation ->
+private suspend fun Call.awaitBody(): String = awaitBody(2L * 1024 * 1024)
+
+internal suspend fun Call.awaitBody(maxBytes: Long): String = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
@@ -119,15 +121,14 @@ private suspend fun Call.awaitBody(): String = suspendCancellableCoroutine { con
                         )
                     }
                     val body = it.body ?: throw RadioException(RadioError.INVALID_RESPONSE, "Empty radio response")
-                    val max = 2L * 1024 * 1024
-                    if (body.contentLength() > max) throw RadioException(RadioError.TOO_LARGE, "Radio response is too large")
+                    if (body.contentLength() > maxBytes) throw RadioException(RadioError.TOO_LARGE, "Radio response is too large")
                     val buffer = Buffer()
                     val source = body.source()
                     while (true) {
                         if (!continuation.isActive) return
-                        val count = source.read(buffer, minOf(8192L, max + 1 - buffer.size))
+                        val count = source.read(buffer, minOf(8192L, maxBytes + 1 - buffer.size))
                         if (count == -1L) break
-                        if (buffer.size > max) throw RadioException(RadioError.TOO_LARGE, "Radio response is too large")
+                        if (buffer.size > maxBytes) throw RadioException(RadioError.TOO_LARGE, "Radio response is too large")
                     }
                     buffer.readUtf8()
                 }
@@ -154,23 +155,40 @@ private fun IOException.radioFailure(): RadioException {
 }
 
 object RadioJson {
+    internal const val SOMA_FM_PREFIX = "somafm:"
     private val uuidPattern = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+    private val somaFmIdPattern = Regex("[a-z0-9][a-z0-9_-]{0,63}")
     private val codecs = setOf("MP3", "AAC", "AAC+", "OGG", "VORBIS", "OPUS", "FLAC")
 
     fun validateStation(station: RadioStation): RadioStation {
-        if (!uuidPattern.matches(station.stationUuid)) throw RadioException(RadioError.POLICY, "Invalid station identifier")
+        val somaFm = station.stationUuid.startsWith(SOMA_FM_PREFIX)
+        val identifier = when {
+            uuidPattern.matches(station.stationUuid) -> UUID.fromString(station.stationUuid).toString()
+            somaFm -> {
+                val id = station.stationUuid.removePrefix(SOMA_FM_PREFIX).lowercase(Locale.ROOT)
+                if (!somaFmIdPattern.matches(id)) throw RadioException(RadioError.POLICY, "Invalid station identifier")
+                SOMA_FM_PREFIX + id
+            }
+            else -> throw RadioException(RadioError.POLICY, "Invalid station identifier")
+        }
         val codec = station.codec.trim().uppercase(Locale.ROOT)
         if (codec !in codecs || !station.lastCheckOk) throw RadioException(RadioError.POLICY, "Unsupported or broken radio station")
-        val url = RadioUrlPolicy.requirePublicHttps(station.streamUrl).toString()
+        val url = if (somaFm) {
+            SomaFmPolicy.requireStationUrl(station.streamUrl).toString()
+        } else {
+            RadioUrlPolicy.requirePublicHttps(station.streamUrl).toString()
+        }
         fun text(value: String, max: Int) = value.filter { it >= ' ' && it != '\u007f' }.trim().take(max)
         return station.copy(
-            stationUuid = UUID.fromString(station.stationUuid).toString(),
+            stationUuid = identifier,
             name = text(station.name, 200).ifEmpty { "Radio station" }, streamUrl = url,
             homepage = station.homepage.takeIf { RadioUrlPolicy.isSafePublicHttps(it) }
                 ?.let { RadioUrlPolicy.requirePublicHttps(it).toString() }?.takeIf { it.length <= 2048 }.orEmpty(),
             countryCode = text(station.countryCode, 2).uppercase(Locale.ROOT),
             language = text(station.language, 200), tags = text(station.tags, 500), codec = codec,
             bitrate = station.bitrate.coerceIn(0, 10000),
+            listeners = station.listeners.coerceIn(0, 1_000_000_000),
+            lastPlaying = text(station.lastPlaying, 200),
         )
     }
 
@@ -190,6 +208,7 @@ object RadioJson {
                     language = item.optString("language"), tags = item.optString("tags"),
                     codec = item.optString("codec"),
                     bitrate = item.optInt("bitrate"), lastCheckOk = item.optInt("lastcheckok") == 1,
+                    listeners = item.optInt("listeners"), lastPlaying = item.optString("lastplaying"),
                 ))
             } catch (_: RadioException) { null }
         }.distinctBy { it.stationUuid }
@@ -211,7 +230,8 @@ object RadioJson {
             put(JSONObject().put("stationuuid", s.stationUuid).put("name", s.name)
                 .put("url_resolved", s.streamUrl).put("homepage", s.homepage)
                 .put("countrycode", s.countryCode).put("language", s.language).put("tags", s.tags)
-                .put("codec", s.codec).put("bitrate", s.bitrate).put("lastcheckok", if (s.lastCheckOk) 1 else 0))
+                .put("codec", s.codec).put("bitrate", s.bitrate).put("lastcheckok", if (s.lastCheckOk) 1 else 0)
+                .put("listeners", s.listeners).put("lastplaying", s.lastPlaying))
         }
     }.toString()
 }

@@ -3,10 +3,12 @@
     <string name="catalog_verify_add">Prüfen und zur Playlist hinzufügen</string>
     <string name="catalog_title">Lokal &amp; offene Musikkataloge</string>
     <string name="catalog_query">Musik suchen</string>
-    <string name="catalog_scope">Lokale Musik und zwei offene Quellen. Nicht alle Musik ist frei herunterladbar.</string>
+    <string name="catalog_scope">Lokale Musik und vier offene Quellen. Nicht alle Musik ist frei herunterladbar.</string>
     <string name="catalog_all">Alle</string>
     <string name="catalog_archive">Internet Archive</string>
     <string name="catalog_openverse">Openverse</string>
+    <string name="catalog_audius">Audius</string>
+    <string name="catalog_ccmixter">ccMixter</string>
     <string name="catalog_unknown_source">Weitere Quelle</string>
     <string name="catalog_local">Lokale Treffer</string>
     <string name="catalog_local_empty">Keine lokalen Treffer. Importierte Musik bleibt auch ohne Netz nutzbar.</string>

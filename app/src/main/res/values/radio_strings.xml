@@ -61,4 +61,10 @@
     <string name="radio_play">%1$s abspielen</string>
     <string name="radio_pause">%1$s pausieren</string>
     <string name="radio_resolving">Sicheren Stream ermitteln…</string>
+    <string name="radio_somafm_title">SomaFM</string>
+    <string name="radio_somafm_hint">Zweites, unabhängiges Senderverzeichnis neben Radio Browser.</string>
+    <string name="radio_somafm_loading">SomaFM-Sender werden geladen…</string>
+    <string name="radio_somafm_error">SomaFM-Sender konnten nicht geladen werden. Die Radio-Browser-Liste bleibt verfügbar.</string>
+    <string name="radio_somafm_listeners">%1$d Hörer</string>
+    <string name="radio_somafm_last_playing">Zuletzt: %1$s</string>
 </resources>

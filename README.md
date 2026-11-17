@@ -28,8 +28,8 @@ No account, analytics SDK, stream recording, download cache or radio entries in 
 
 ## Search And Offline Playlists
 
-1. Open **Suche**. Local results appear on top; **offene Musikkataloge** below search Internet Archive and Openverse.
-2. Optionally restrict to one provider with the source chips. This is not a full commercial catalog: it contains openly licensed recordings and verified previews.
+1. Open **Suche**. Local results appear on top; **offene Musikkataloge** below search Internet Archive, Openverse, Audius and ccMixter.
+2. Optionally restrict to one provider with the source chips. This is not a full commercial catalog: it contains openly licensed recordings, artist-published Audius tracks and verified previews.
 3. Press **Zur Playlist hinzufügen**, choose an existing or new playlist. Tracks are queued for download automatically.
 4. **Bibliothek → Offline-Playlists** shows durable per-track progress, retry/cancel, license and attribution.
 5. Ready tracks appear in the normal playlist and play from the local file only.
@@ -38,8 +38,20 @@ Downloads are foreground-independent WorkManager jobs capped at 25 MiB per track
 Every download re-checks the recording-specific license and publisher evidence before any audio byte is fetched.
 Files live in app-private storage; the media scanner never reconciles them away.
 Ordinary playlist reordering and removal stay authoritative, including mixed local/download playlists.
-Internet Archive files are currently limited to the reviewed CC BY 4.0 Chris Zabriskie album; Openverse/Freesound previews require per-recording publisher verification.
-Unverified results remain discovery-only and cannot be added.
+
+Per-source download rules:
+
+| Source | Search | Offline download |
+|---|---|---|
+| Internet Archive | yes | only the reviewed CC BY 4.0 album |
+| Openverse (Freesound) | yes | publisher page verified per recording |
+| Audius | yes | only when the artist enabled downloads **and** the track carries a CC licence |
+| ccMixter | yes | CC0 / BY / BY-SA / BY-NC / BY-NC-SA (NC is shown in the attribution) |
+| SomaFM | radio directory, not song search | never |
+| Radio Browser | radio directory | never |
+
+Unverified results stay discovery-only and cannot be added.
+
 
 
 ## Source Repositories
@@ -53,11 +65,26 @@ Unverified results remain discovery-only and cannot be added.
 | [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) | Planned optional metadata/external-open provider; not bundled or integrated. GPLv3 obligations must be reviewed before distribution if added. |
 | [Openverse API](https://github.com/WordPress/openverse) | Implemented search metadata; downloads require independent publisher verification. |
 | [Internet Archive](https://archive.org/developers/) | Implemented search, metadata and verified file download for reviewed CC-licensed recordings. |
+| [Audius](https://docs.audius.org/developers/) | Implemented search, streaming and licence-gated downloads via the public discovery API. |
+| [ccMixter](https://ccmixter.org/) | Implemented search and CC-licensed downloads via its public query API. |
+| [SomaFM](https://somafm.com/) | Implemented second radio directory using its public channel list and official `.pls` stream endpoints. |
 | [WorkManager](https://developer.android.com/jetpack/androidx/releases/work) | Durable, network-constrained offline playlist downloads. |
 
 Planned catalog services: [LibriVox API](https://librivox.org/api/info) and an authenticated catalog (e.g. Jamendo tracks API, which requires a `client_id`).
-Implemented radio service: [Radio Browser API documentation](https://docs.radio-browser.info/).
+Implemented radio services: [Radio Browser API documentation](https://docs.radio-browser.info/) and [SomaFM](https://somafm.com/).
+Not implemented: Free Music Archive (public API retired), Musopen (no usable public API), and Bandcamp / SoundCloud / YouTube Music via NewPipeExtractor (see below).
 These links document provenance and plans, not an assertion that these services are implemented or endorse this project.
+
+### Why Bandcamp, SoundCloud and YouTube Music are not integrated
+
+The table in the requirements lists these three via NewPipeExtractor. They are deliberately **not** included:
+
+- NewPipeExtractor bypasses the official interfaces of those services, and their terms restrict stream extraction.
+- YouTube Music downloads are explicitly not generally permitted.
+- NewPipeExtractor is GPLv3; linking it changes the licence obligations of this MIT-licensed repository.
+
+If those sources are wanted, the defensible route is an official/partner API or opening the item in the provider's own app.
+
 
 ## Upstream Documentation
 

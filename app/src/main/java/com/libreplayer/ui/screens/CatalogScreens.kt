@@ -86,7 +86,7 @@ fun CatalogSearchScreen(
                     singleLine = true,
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf<String?>(null, "archive", "openverse")) { provider ->
+                    items(listOf<String?>(null, "archive", "openverse", "audius", "ccmixter")) { provider ->
                         FilterChip(
                             selected = state.providerId == provider,
                             onClick = { onProviderChange(provider) },
@@ -353,6 +353,8 @@ private fun catalogProviderLabel(provider: String): String = stringResource(
     when (provider) {
         "archive" -> R.string.catalog_archive
         "openverse" -> R.string.catalog_openverse
+        "audius" -> R.string.catalog_audius
+        "ccmixter" -> R.string.catalog_ccmixter
         else -> R.string.catalog_unknown_source
     },
 )

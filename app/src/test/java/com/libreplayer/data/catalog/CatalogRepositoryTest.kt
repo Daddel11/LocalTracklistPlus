@@ -178,6 +178,8 @@ class CatalogRepositoryTest {
     private fun fixtureTransport() = FakeTransport().apply {
         jsonReply = { url -> when {
             url.host == "archive.org" -> CatalogFixtures.archive().toString()
+            url.host == "api.audius.co" -> JSONObject().put("data", JSONArray()).toString()
+            url.host == "ccmixter.org" -> JSONArray().toString()
             url.encodedPath == "/v1/audio/" -> JSONObject().put("results", JSONArray().put(CatalogFixtures.openverse())).toString()
             else -> CatalogFixtures.openverse().toString()
         } }

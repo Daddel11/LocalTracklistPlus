@@ -36,14 +36,7 @@ internal class CatalogHttp(
     private val blockedUntil = ConcurrentHashMap<String, Long>()
 
     override suspend fun json(url: HttpUrl): String {
-        try {
-            RadioUrlPolicy.requirePublicHttps(url.toString())
-        } catch (_: RadioException) {
-            throw CatalogException(CatalogError.POLICY, "Catalog API URL is not permitted")
-        }
-        if (url.host !in setOf("archive.org", "api.openverse.org")) {
-            throw CatalogException(CatalogError.POLICY, "Unsupported catalog API host")
-        }
+        requireApiUrl(url)
         return request(apiClient, url, false)
     }
 
@@ -80,7 +73,7 @@ internal class CatalogHttp(
                                     "Catalog provider returned HTTP ${it.code}", it.code, retry)
                             }
                             val type = it.header("Content-Type").orEmpty().substringBefore(';').trim().lowercase(Locale.ROOT)
-                            if (if (html) type != "text/html" else type != "application/json") {
+                            if (if (html) type != "text/html" else !acceptsJson(url.host, type)) {
                                 throw CatalogException(CatalogError.INVALID_RESPONSE, "Unexpected catalog response format")
                             }
                             val body = it.body ?: throw CatalogException(CatalogError.INVALID_RESPONSE, "Empty catalog response")
@@ -107,11 +100,33 @@ internal class CatalogHttp(
     companion object {
         const val MAX_JSON_BYTES = 4L * 1024 * 1024
         const val MAX_EVIDENCE_BYTES = 512L * 1024
+        internal val API_HOSTS = setOf("archive.org", "api.openverse.org", "api.audius.co", "ccmixter.org")
+
+        internal fun requireApiUrl(url: HttpUrl) {
+            try {
+                RadioUrlPolicy.requirePublicHttps(url.toString())
+            } catch (_: RadioException) {
+                throw CatalogException(CatalogError.POLICY, "Catalog API URL is not permitted")
+            }
+            if (url.host !in API_HOSTS) {
+                throw CatalogException(CatalogError.POLICY, "Unsupported catalog API host")
+            }
+        }
+
+        private fun acceptsJson(host: String, type: String): Boolean =
+            type == "application/json" || (host == "ccmixter.org" && type == "text/plain")
 
         internal fun createApiClient(): OkHttpClient = RadioNetwork.createClient().newBuilder()
             .callTimeout(20, TimeUnit.SECONDS)
-            .addNetworkInterceptor { chain -> chain.proceed(chain.request().newBuilder()
-                .header("User-Agent", "LocalTracklistPlus/0.3").removeHeader("Authorization").removeHeader("Cookie").build()) }
+            .addNetworkInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "LocalTracklistPlus/0.3").removeHeader("Authorization").removeHeader("Cookie").build()
+                val response = chain.proceed(request)
+                val type = response.header("Content-Type").orEmpty().substringBefore(';').trim().lowercase(Locale.ROOT)
+                if (request.url.host == "ccmixter.org" && type == "text/plain") {
+                    response.newBuilder().header("Content-Type", "application/json").build()
+                } else response
+            }
             .build()
 
         internal fun createEvidenceClient(): OkHttpClient = OkHttpClient.Builder().proxy(Proxy.NO_PROXY).dns(RadioDns())
