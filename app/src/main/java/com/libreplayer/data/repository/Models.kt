@@ -10,6 +10,7 @@ import java.time.Instant
 enum class SongSourceType {
     MEDIA_STORE,
     DOCUMENT,
+    DOWNLOADED,
 }
 
 enum class LibrarySortOption {

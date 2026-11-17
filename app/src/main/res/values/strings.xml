@@ -4,6 +4,9 @@
     <string name="plus_search">Suche</string>
     <string name="plus_radio">Radio</string>
     <string name="plus_library">Bibliothek</string>
+    <string name="plus_radio_favorites">Radio-Favoriten</string>
+    <string name="plus_downloads">Offline-Playlists</string>
+    <string name="plus_local_search">Erweiterte lokale Suche</string>
     <string name="plus_settings">Einstellungen</string>
     <string name="plus_back">Zurück</string>
     <string name="plus_music">Musik</string>

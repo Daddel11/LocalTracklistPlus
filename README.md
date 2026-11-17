@@ -6,16 +6,18 @@ Original development credit belongs to quietswitch; this repository contains the
 
 ## Prototype Scope
 
-The prototype adds a German-first Home, local search, live Radio Browser stations, and Bibliothek navigation with a shared mini-player.
+The prototype adds a German-first Home, local search, live Radio Browser stations with electronic subgenres, a Radio Favorites tab, an openly licensed music catalog with offline playlists, and Bibliothek navigation with a shared mini-player.
 Albums, artists, playlists, favorites, folder import, and the full player reuse the upstream implementation.
-Radio is the first implemented online source. Downloads, recording, other online catalogs and mixed-provider playlists are not implemented.
+Implemented online sources: Radio Browser (streaming) and Internet Archive / Openverse (search, playlist selection, verified offline download).
+Only recordings with recording-specific, re-verified permission evidence can be downloaded; unknown and radio sources can never be downloaded.
 Existing upstream screens are not yet fully translated. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for verification and limitations.
 
 ## Listen To Music
 
 1. Open **Radio** and search for a station, for example `Radio Paradise`.
 2. Optionally filter by genre, country or language, then press the station's play button.
-3. Use the heart to save a station. Saved stations remain visible offline; playback needs internet.
+   The electronic row adds Minimal, Minimal Techno, Trance, Psytrance, Acid, Acid Techno, Techno, Hard Techno, Hardcore, Hardstyle, House, Deep House, Tech House and Drum & Bass.
+3. Use the heart to save a station. **Bibliothek → Radio-Favoriten** lists saved stations and works offline.
 4. Tap the mini-player for the LIVE player. Local music remains accessible in **Bibliothek**.
 
 The first source supports direct HTTPS MP3, AAC/AAC+, Ogg/Vorbis/Opus and FLAC audio, subject to device codec support.
@@ -23,6 +25,22 @@ HTTP-only stations and HLS/M3U/PLS playlists are deliberately excluded from this
 Search is bounded to 30 results. The most recent matching search is cached for up to 24 hours for network-failure fallback.
 Radio Browser receives station searches/filter values and a play-click request. Playing connects directly to the broadcaster.
 No account, analytics SDK, stream recording, download cache or radio entries in local listening history are added.
+
+## Search And Offline Playlists
+
+1. Open **Suche**. Local results appear on top; **offene Musikkataloge** below search Internet Archive and Openverse.
+2. Optionally restrict to one provider with the source chips. This is not a full commercial catalog: it contains openly licensed recordings and verified previews.
+3. Press **Zur Playlist hinzufügen**, choose an existing or new playlist. Tracks are queued for download automatically.
+4. **Bibliothek → Offline-Playlists** shows durable per-track progress, retry/cancel, license and attribution.
+5. Ready tracks appear in the normal playlist and play from the local file only.
+
+Downloads are foreground-independent WorkManager jobs capped at 25 MiB per track and 3 attempts.
+Every download re-checks the recording-specific license and publisher evidence before any audio byte is fetched.
+Files live in app-private storage; the media scanner never reconciles them away.
+Ordinary playlist reordering and removal stay authoritative, including mixed local/download playlists.
+Internet Archive files are currently limited to the reviewed CC BY 4.0 Chris Zabriskie album; Openverse/Freesound previews require per-recording publisher verification.
+Unverified results remain discovery-only and cannot be added.
+
 
 ## Source Repositories
 
@@ -33,10 +51,11 @@ No account, analytics SDK, stream recording, download cache or radio entries in 
 | [Radio Browser API](https://github.com/segler-alex/radiobrowser-api-rust) | Implemented station directory, search and stream resolution via its public HTTPS API. |
 | [OkHttp](https://github.com/square/okhttp) | HTTPS API and streaming transport with URL/DNS/redirect restrictions. |
 | [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) | Planned optional metadata/external-open provider; not bundled or integrated. GPLv3 obligations must be reviewed before distribution if added. |
-| [Openverse](https://github.com/WordPress/openverse) | Planned audio metadata API; not integrated. |
+| [Openverse API](https://github.com/WordPress/openverse) | Implemented search metadata; downloads require independent publisher verification. |
+| [Internet Archive](https://archive.org/developers/) | Implemented search, metadata and verified file download for reviewed CC-licensed recordings. |
+| [WorkManager](https://developer.android.com/jetpack/androidx/releases/work) | Durable, network-constrained offline playlist downloads. |
 
-Planned catalog services: [LibriVox API](https://librivox.org/api/info) and
-[Internet Archive developer APIs](https://archive.org/developers/).
+Planned catalog services: [LibriVox API](https://librivox.org/api/info) and an authenticated catalog (e.g. Jamendo tracks API, which requires a `client_id`).
 Implemented radio service: [Radio Browser API documentation](https://docs.radio-browser.info/).
 These links document provenance and plans, not an assertion that these services are implemented or endorse this project.
 

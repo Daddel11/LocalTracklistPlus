@@ -51,7 +51,7 @@ class NavigationTest {
         try {
             selectedItem("Bibliothek").performClick().assertIsSelected()
             stage = "select Alben"
-            selectedItem("Alben").performClick().assertIsSelected()
+        selectedItem("Alben").performScrollTo().performClick().assertIsSelected()
             stage = "return Home"
             selectedItem("Home").performClick().assertIsSelected()
             stage = "Home Library shortcut"

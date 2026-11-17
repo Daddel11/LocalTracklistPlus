@@ -1,6 +1,90 @@
 # LocalTracklist+ Implementation Status
 
-## Current Delivery - Real Radio Source
+## Current Delivery - Electronic Genres, Radio Favorites, Open Catalog And Offline Playlists
+
+Status: IMPLEMENTED AND TESTED, 2026-11-17. Installed on the connected CPH2797 Android phone
+as an in-place update; existing app data was preserved and migrated 2 -> 3.
+
+### What Works
+
+- Radio genre rows now include an electronic subgenre row: Minimal, Minimal Techno, Trance,
+  Psytrance, Acid, Acid Techno, Techno, Hard Techno, Hardcore, Hardstyle, House, Deep House,
+  Tech House, Drum & Bass. Values are sent as real Radio Browser tags, never invented stations.
+- `Bibliothek -> Radio-Favoriten` lists saved stations from the existing favorites store.
+  It opens offline and issues no search request; removing a favorite uses the same flow as Radio.
+- `Bibliothek -> Offline-Playlists` lists durable download state per playlist and per track.
+- Global search combines local library results with Internet Archive and Openverse discovery,
+  with a source filter. Local results reuse the existing search engine and local-only playback.
+- Selected catalog tracks can be added to an existing local playlist or a new one; selection
+  order is persisted immediately, before any bytes exist.
+- Downloads run as unique, network-constrained WorkManager jobs (2 concurrent, 3 attempts,
+  25 MiB per track, 5-minute transfer bound) and publish ordinary local `Song` rows.
+- Ready tracks play through the existing single Media3 session from the app-private file;
+  no second player, streaming fallback or radio/`Song` ID mixing was introduced.
+
+### Rights And Safety
+
+- Download authorization is per recording, not per catalog: pinned CC0 1.0, CC BY 3.0/4.0 and
+  CC BY-SA 3.0/4.0 URLs only, exact identity binding, no substring matching.
+- Internet Archive downloads are restricted to the reviewed CC BY 4.0 Chris Zabriskie album
+  whose artist pages independently grant reuse; the item's BY 3.0 label discrepancy is recorded
+  explicitly instead of being silently upgraded.
+- Openverse results are Freesound-sourced previews/clips. Download requires fresh corroboration
+  of the publisher page (creator, sound ID, title, duration, preview URL, license) each time.
+  Jamendo items are excluded because Openverse omits `audiodownload_allowed`.
+- Every download revalidates metadata, license and publisher evidence before the first audio read.
+  Public HTTPS only, guarded DNS/redirects, bounded responses, sanitized errors without URLs.
+- Unknown sources, radio and any unverified result remain download-denied; the UI shows that.
+- Third-party directory license labels are never treated as proof of recording ownership.
+
+### Persistence And Data Safety
+
+- Additive Room schema 3 with three new tables and `MIGRATION_2_3`; no legacy table, ID or
+  protection semantics changed, and the destructive fallback remains removed.
+- `playlist_songs` stays the single order authority for mixed local/download content. Catalog
+  additions create pending placeholders; ordinary reorder/remove is never undone by a later
+  completion. Removing the last selection cancels its download.
+- Downloaded audio uses explicit `DOWNLOADED` source memberships so media scans, empty volumes,
+  rebuilds and SAF detach cannot delete it. Missing files drop availability, not playlist intent.
+- Attempt IDs plus a process-local ownership map prevent stale, duplicate or cancelled workers
+  from publishing; recovery never deletes an actively owned `.part`.
+- Favorites and offline downloads are separate stores; radio favorites are not local songs.
+
+### Verification
+
+- Build: `bash ./gradlew testDebugUnitTest lintDebug assembleDebug :app:assembleDebugAndroidTest --console=plain`
+  passed; lint has no errors.
+- 317 JVM unit tests passed in 48 suites, 0 failures (268 previous + catalog rights/parse/search,
+  offline storage, playlist authority, view models and genre regressions); lint has 0 errors and 63 warnings.
+- API 35 emulator: 54 Android tests passed, including 1->2->3 and 2->3 migrations with row and
+  provenance comparison, scanner isolation, worker ownership/cancellation/integrity, mixed
+  playlist ordering, electronic genre selection, radio favorites tab, and catalog UI flows.
+- Physical phone, opt-in live catalog test passed on the final APK:
+  `CatalogLiveDownloadTest` searched Internet Archive, downloaded 1.2 MB through the production
+  WorkManager path, matched the catalog MD5 and audio metadata, published a `DOWNLOADED` song,
+  survived activity recreation, and played the local file. It pauses playback and deletes only
+  its own test playlist afterwards.
+- Physical phone, live radio regression still passed after the schema upgrade.
+- Fixed during acceptance: `CatalogMigrationInstrumentedTest` assumed every exported entity has
+  an `indices` array; `CatalogScreensTest` targeted two scrollables. Both were test defects, fixed
+  without weakening assertions.
+- Test runner isolation extended with `getCacheDir`, `getNoBackupFilesDir` and namespaced
+  SharedPreferences so WorkManager cannot open the production database under instrumentation.
+
+### Limits
+
+- This is an openly licensed catalog, not a commercial all-music search. Mainstream label
+  catalogs need a licensed provider (e.g. a Jamendo `client_id`) and are not implemented.
+- Corpus size, ranking and availability depend on Internet Archive and Openverse; 30 results per
+  provider and 3 evidence probes per search are intentional bounds.
+- Openverse/Freesound downloads are preview encodings, labeled as such, not full-length masters.
+- The testbench proxy denies archive.org, so live download acceptance ran on the phone only.
+- Deleting a playlist keeps shared downloaded files if another playlist selects them; there is
+  still no manual "remove download" or storage-usage screen.
+- The phone's screen-off timeout was temporarily raised for device acceptance and then restored
+  to 1 minute; `stay-on-while-plugged-in` was reverted.
+
+## Previous Delivery - Real Radio Source
 
 Status: IMPLEMENTED AND TESTED, 2026-11-16. Final radio APK installed on the connected
 CPH2797 Android phone without uninstalling or clearing production app data.

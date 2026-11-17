@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="radio_title">Radio</string>
+    <string name="radio_favorites_title">Lieblingssender</string>
+    <string name="radio_electronic_subgenres">Electronic: Subgenres</string>
+    <string name="radio_genre_minimal">Minimal</string>
+    <string name="radio_genre_minimal_techno">Minimal Techno</string>
+    <string name="radio_genre_trance">Trance</string>
+    <string name="radio_genre_psytrance">Psytrance</string>
+    <string name="radio_genre_acid">Acid</string>
+    <string name="radio_genre_acid_techno">Acid Techno</string>
+    <string name="radio_genre_techno">Techno</string>
+    <string name="radio_genre_hard_techno">Hard Techno</string>
+    <string name="radio_genre_hardcore">Hardcore</string>
+    <string name="radio_genre_hardstyle">Hardstyle</string>
+    <string name="radio_genre_house">House</string>
+    <string name="radio_genre_deep_house">Deep House</string>
+    <string name="radio_genre_tech_house">Tech House</string>
+    <string name="radio_genre_drum_bass">Drum &amp; Bass</string>
     <string name="radio_privacy">Erst beim Nutzen von Radio werden Suchbegriffe und Filter an Radio Browser gesendet. Beim Abspielen verbindet sich die App mit dem Sender. Deine lokale Musik bleibt lokal.</string>
     <string name="radio_discover">Entdecken</string>
     <string name="radio_favorites">Favoriten</string>

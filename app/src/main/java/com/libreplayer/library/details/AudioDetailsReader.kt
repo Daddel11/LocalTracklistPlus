@@ -78,6 +78,7 @@ class AudioDetailsReader(
             bitDepth = bitDepth,
         )
         val sourceTypeLabel = when (song.sourceType) {
+            SongSourceType.DOWNLOADED -> "Offline download"
             SongSourceType.MEDIA_STORE -> "MediaStore"
             SongSourceType.DOCUMENT -> if (song.contentUri.contains("/tree/")) "Imported folder / SAF" else "Imported file"
         }

@@ -51,8 +51,9 @@ data class RadioUiState(
 class RadioViewModel(
     private val repo: RadioRepository,
     private val playback: PlaybackConnection,
+    initiallyFavorites: Boolean = false,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(RadioUiState())
+    private val mutableState = MutableStateFlow(RadioUiState(showFavorites = initiallyFavorites))
     val state: StateFlow<RadioUiState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
     private var playJob: Job? = null

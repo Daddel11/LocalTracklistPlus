@@ -411,7 +411,11 @@ private fun MediaItem.asFallbackSong(): Song {
     val album = metadata.albumTitle?.toString()
     return Song(
         id = mediaId,
-        sourceType = if (mediaId.startsWith("media:")) SongSourceType.MEDIA_STORE else SongSourceType.DOCUMENT,
+        sourceType = when {
+            mediaId.startsWith("downloaded:") -> SongSourceType.DOWNLOADED
+            mediaId.startsWith("media:") -> SongSourceType.MEDIA_STORE
+            else -> SongSourceType.DOCUMENT
+        },
         contentUri = localConfiguration?.uri?.toString().orEmpty(),
         title = title,
         artist = artist,

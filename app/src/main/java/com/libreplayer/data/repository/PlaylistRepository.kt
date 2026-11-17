@@ -1,6 +1,7 @@
 package com.libreplayer.data.repository
 
 import com.libreplayer.data.database.dao.PlaylistQueries
+import com.libreplayer.data.database.dao.CatalogDao
 import com.libreplayer.data.database.dao.PlaylistSongWithSong
 import com.libreplayer.data.database.dao.SongLookupQueries
 import com.libreplayer.data.database.entity.PlaylistEntity
@@ -25,6 +26,7 @@ interface PlaylistRepository {
 class DefaultPlaylistRepository(
     private val playlistQueries: PlaylistQueries,
     private val songLookupQueries: SongLookupQueries,
+    private val catalogDao: CatalogDao? = null,
     private val transaction: suspend (suspend () -> Unit) -> Unit,
 ) : PlaylistRepository {
     override fun observePlaylists(): Flow<List<UserPlaylist>> =
@@ -118,6 +120,7 @@ class DefaultPlaylistRepository(
         val updated = playlistQueries.getPlaylistEntriesNow(playlistId)
             .filterNot { it.songId == songId }
             .reindex()
+        catalogDao?.removeEntriesForSong(playlistId, songId)
         playlistQueries.replaceSongs(playlistId, updated)
         playlistQueries.updatePlaylist(playlist.copy(updatedAtEpochMillis = System.currentTimeMillis()))
     }

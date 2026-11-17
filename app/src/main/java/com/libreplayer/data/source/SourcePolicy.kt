@@ -25,7 +25,27 @@ object SourcePolicy {
         download = SourcePermission.DENIED,
     )
 
+    private val catalogDescriptors = listOf(
+        SourceDescriptor(
+            sourceId = "archive",
+            evidenceUrl = "https://archive.org/developers/md-read.html",
+            notes = "Catalog transport capability only. Each recording requires fresh publisher rights, restriction, file and checksum verification before download.",
+            lastReviewed = "2026-11-16",
+            streaming = SourcePermission.ALLOWED,
+            download = SourcePermission.ALLOWED,
+        ),
+        SourceDescriptor(
+            sourceId = "openverse",
+            evidenceUrl = "https://api.openverse.org/v1/",
+            notes = "Catalog transport capability only. Freesound MP3 previews require matching publisher license evidence for offline use; not Jamendo downloads.",
+            lastReviewed = "2026-11-16",
+            streaming = SourcePermission.ALLOWED,
+            download = SourcePermission.ALLOWED,
+        ),
+    )
+
     fun descriptor(source: String): SourceDescriptor? = radioDescriptor.takeIf { source == it.sourceId }
+        ?: catalogDescriptors.firstOrNull { it.sourceId == source }
 
     fun permission(source: String, operation: SourceOperation): SourcePermission =
         descriptor(source)?.let {

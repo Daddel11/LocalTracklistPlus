@@ -27,6 +27,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,6 +69,10 @@ import com.libreplayer.ui.screens.SongsSection
 import com.libreplayer.ui.screens.HomeScreen
 import com.libreplayer.ui.screens.RadioScreen
 import com.libreplayer.ui.screens.RadioViewModel
+import com.libreplayer.ui.screens.CatalogViewModel
+import com.libreplayer.ui.screens.CatalogSearchScreen
+import com.libreplayer.ui.screens.OfflinePlaylistsScreen
+import com.libreplayer.ui.screens.OfflinePlaylistScreen
 import com.libreplayer.ui.theme.LibrePlayerTheme
 
 @Composable
@@ -153,7 +159,41 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                                 Icon(Icons.Filled.Settings, stringResource(R.string.plus_settings))
                             }
                         }
-                        if (selectedSection == "playlists") {
+                        when (selectedSection) {
+                        "radio_favorites" -> {
+                            val radioViewModel: RadioViewModel = viewModel(key = "libraryRadioFavorites", factory = viewModelFactory {
+                                initializer { RadioViewModel(appContainer.radioRepository, appContainer.playbackConnection, initiallyFavorites = true) }
+                            })
+                            val radioState by radioViewModel.state.collectAsStateWithLifecycle()
+                            val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
+                            RadioScreen(
+                                state = radioState,
+                                playbackState = playbackState,
+                                onQueryChange = radioViewModel::setQuery,
+                                onGenreChange = radioViewModel::setGenre,
+                                onCountryChange = radioViewModel::setCountry,
+                                onLanguageChange = radioViewModel::setLanguage,
+                                onRetry = radioViewModel::refresh,
+                                onPlay = radioViewModel::play,
+                                onToggleFavorite = radioViewModel::toggleFavorite,
+                                onShowFavorites = { if (!it) navController.navigateTopLevel(AppRoute.Radio.route) },
+                                onTogglePlayPause = playbackViewModel::togglePlayPause,
+                            )
+                        }
+                        "downloads" -> {
+                            val catalogViewModel = catalogViewModel(appContainer, loadCatalog = false)
+                            val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
+                            catalogState.actionErrorRes?.let {
+                                androidx.compose.material3.Text(stringResource(it), color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                            }
+                            OfflinePlaylistsScreen(
+                                playlists = catalogState.playlists,
+                                onOpenPlaylist = { navController.navigate(AppRoute.OfflinePlaylistDetail.create(it)) },
+                                onDownloadPlaylist = catalogViewModel::downloadPlaylist,
+                                onCreatePlaylist = catalogViewModel::createPlaylist,
+                            )
+                        }
+                        "playlists" -> {
                             PlaylistsScreen(
                                 libraryState = libraryState,
                                 onSearch = { navController.navigateTopLevel(AppRoute.Search.route) },
@@ -164,7 +204,8 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                                 onOpenSmartPlaylist = { navController.navigate(AppRoute.SmartPlaylistDetail.create(it.name)) },
                                 contentPadding = PaddingValues(0.dp),
                             )
-                        } else {
+                        }
+                        else -> {
                             SongsAlbumsArtistsScreen(
                                 title = stringResource(R.string.plus_library),
                                 section = when (selectedSection) {
@@ -187,6 +228,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                                 onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
                                 contentPadding = PaddingValues(0.dp),
                             )
+                        }
                         }
                     }
                 }
@@ -259,6 +301,56 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                     )
                 }
                 composable(AppRoute.Search.route) {
+                    val catalogViewModel = catalogViewModel(appContainer, loadCatalog = true)
+                    val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(catalogState.query) { libraryViewModel.setSearchQuery(catalogState.query) }
+                    Column {
+                        androidx.compose.material3.TextButton(onClick = { navController.navigate(AppRoute.LocalSearch.route) }) {
+                            androidx.compose.material3.Text(stringResource(R.string.plus_local_search))
+                        }
+                        CatalogSearchScreen(
+                            state = catalogState,
+                            libraryState = libraryState,
+                            settings = settings,
+                            onQueryChange = {
+                                libraryViewModel.setSearchQuery(it)
+                                catalogViewModel.setQuery(it)
+                            },
+                            onProviderChange = catalogViewModel::setProvider,
+                            onRetry = catalogViewModel::refresh,
+                            onCreatePlaylist = catalogViewModel::createPlaylist,
+                            onAddToPlaylist = catalogViewModel::add,
+                            onPlayLocal = playbackViewModel::playSong,
+                            onOpenOfflinePlaylist = { navController.navigate(AppRoute.OfflinePlaylistDetail.create(it)) },
+                        )
+                    }
+                }
+                composable(
+                    route = AppRoute.OfflinePlaylistDetail.route,
+                    arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
+                ) { backStackEntry ->
+                    val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: -1L
+                    val catalogViewModel = catalogViewModel(appContainer, loadCatalog = false)
+                    val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
+                    val playlistFlow = remember(playlistId) { appContainer.offlineRepository.observePlaylist(playlistId) }
+                    val tracks by playlistFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+                    Column {
+                        catalogState.actionErrorRes?.let {
+                            androidx.compose.material3.Text(stringResource(it), color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                        }
+                        OfflinePlaylistScreen(
+                            name = catalogState.playlists.firstOrNull { it.playlistId == playlistId }?.name ?: "Playlist",
+                            tracks = tracks,
+                            onBack = { navController.navigateUp() },
+                            onDownloadAll = { catalogViewModel.downloadPlaylist(playlistId) },
+                            onRetry = catalogViewModel::retry,
+                            onCancel = catalogViewModel::cancel,
+                            onRemove = { catalogViewModel.remove(playlistId, it) },
+                            onPlay = playbackViewModel::playSong,
+                        )
+                    }
+                }
+                composable(AppRoute.LocalSearch.route) {
                     SearchScreen(
                         libraryState = libraryState,
                         settings = settings,
@@ -272,7 +364,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         onOpenArtist = { navController.navigate(AppRoute.ArtistDetail.create(it)) },
                         playlists = libraryState.playlists,
                         onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
-                        isTopLevel = true,
+                        isTopLevel = false,
                     )
                 }
                 composable(
@@ -483,7 +575,15 @@ private fun androidx.navigation.NavHostController.navigateTopLevel(route: String
 
 private val librarySections = listOf(
     "songs" to R.string.plus_music,
+    "radio_favorites" to R.string.plus_radio_favorites,
+    "downloads" to R.string.plus_downloads,
     "albums" to R.string.plus_albums,
     "artists" to R.string.plus_artists,
     "playlists" to R.string.plus_playlists,
 )
+
+@Composable
+private fun catalogViewModel(appContainer: AppContainer, loadCatalog: Boolean): CatalogViewModel =
+    viewModel(factory = viewModelFactory {
+        initializer { CatalogViewModel(appContainer.catalogRepository, appContainer.offlineRepository, loadCatalog) }
+    })

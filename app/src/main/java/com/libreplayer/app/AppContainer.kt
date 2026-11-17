@@ -5,6 +5,9 @@ import androidx.room.Room
 import androidx.room.withTransaction
 import com.libreplayer.data.database.AppDatabase
 import com.libreplayer.data.database.MIGRATION_1_2
+import com.libreplayer.data.database.MIGRATION_2_3
+import com.libreplayer.data.catalog.CatalogSearchRepository
+import com.libreplayer.data.download.OfflineRepository
 import com.libreplayer.data.repository.DefaultLibraryRepository
 import com.libreplayer.data.repository.LibraryRefreshStore
 import com.libreplayer.data.repository.DefaultPlaylistRepository
@@ -26,7 +29,7 @@ class AppContainer(context: Context) {
 
     val database: AppDatabase by lazy {
         Room.databaseBuilder(appContext, AppDatabase::class.java, "libreplayer.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
     }
 
@@ -37,6 +40,8 @@ class AppContainer(context: Context) {
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(appContext) }
     val radioRepository: RadioRepository by lazy { RadioRepository(appContext) }
+    val catalogRepository: CatalogSearchRepository by lazy { CatalogSearchRepository() }
+    val offlineRepository: OfflineRepository by lazy { OfflineRepository(appContext, database, catalogRepository) }
     val playbackSnapshotStore: PlaybackSnapshotStore by lazy { PlaybackSnapshotStore(appContext) }
 
     val libraryRepository: LibraryRepository by lazy {
@@ -51,6 +56,7 @@ class AppContainer(context: Context) {
         DefaultPlaylistRepository(
             playlistQueries = database.playlistDao(),
             songLookupQueries = database.songDao(),
+            catalogDao = database.catalogDao(),
             transaction = { block -> database.withTransaction { block() } },
         )
     }

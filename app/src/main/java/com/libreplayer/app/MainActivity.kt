@@ -11,6 +11,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val appContainer = (application as LibrePlayerApplication).appContainer
+        (application as LibrePlayerApplication).recoverOfflineDownloads()
         setContent {
             LibrePlayerApp(appContainer = appContainer)
         }

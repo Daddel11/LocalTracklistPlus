@@ -1,6 +1,7 @@
 package com.libreplayer.library.scanner
 
 import com.libreplayer.data.database.entity.LibrarySourceEntity
+import com.libreplayer.data.repository.SongSourceType
 import java.net.URI
 import java.net.URLDecoder
 import java.util.Locale
@@ -11,6 +12,11 @@ internal fun sourceKey(vararg parts: String): String = parts.joinToString("") { 
 internal object SourceIdentity {
     const val MEDIA = "MEDIA_STORE"
     const val DOCUMENT = "DOCUMENT"
+    const val DOWNLOADED = "DOWNLOADED"
+
+    fun downloaded(): LibrarySourceEntity = LibrarySourceEntity(
+        sourceKey(DOWNLOADED, "app-private"), DOWNLOADED, "app-private", "downloads",
+    )
 
     fun media(volume: String): LibrarySourceEntity {
         require(volume.isNotBlank() && volume != "external")
@@ -57,12 +63,16 @@ internal object SourceIdentity {
     }.getOrDefault(false)
 
     fun qualifiedId(source: LibrarySourceEntity, itemKey: String): String =
-        if (source.kind == DOCUMENT) "document-scoped:${sourceKey(itemKey)}"
-        else "media-scoped:${sourceKey(source.id, source.incarnation.toString(), itemKey)}"
+        when (source.kind) {
+            DOCUMENT -> "document-scoped:${sourceKey(itemKey)}"
+            DOWNLOADED -> "downloaded:$itemKey"
+            else -> "media-scoped:${sourceKey(source.id, source.incarnation.toString(), itemKey)}"
+        }
 
     // Only the platform external-storage provider exposes the accepted volume:path convention.
     // Opaque providers, aggregate MediaStore URIs, and two MediaStore rows never gain path authority.
     fun physicalKey(song: ScannedSong): String? {
+        if (song.sourceType == SongSourceType.DOWNLOADED) return null
         mediaItem(song.contentUri)?.let { (scope, _) ->
             val relative = song.relativePath ?: return null
             return physical(scope.locator, (if (relative.isEmpty()) "" else relative.trimEnd('/') + "/") + song.displayName)

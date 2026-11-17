@@ -111,9 +111,15 @@ internal class PlaylistInterchange(
             }
         }
         return songs.map { song ->
-            PlaylistSource(song, paths[song.id] ?: if (song.sourceType == SongSourceType.DOCUMENT) {
-                externalDocumentPath(Uri.parse(song.contentUri))
-            } else null)
+            PlaylistSource(song, paths[song.id] ?: when (song.sourceType) {
+                SongSourceType.DOCUMENT -> externalDocumentPath(Uri.parse(song.contentUri))
+                SongSourceType.DOWNLOADED -> Uri.parse(song.contentUri).let { uri ->
+                    if (uri.scheme == "file" && uri.authority.isNullOrEmpty() && uri.query == null && uri.fragment == null) {
+                        uri.path?.let(PlaylistPaths::normalize)
+                    } else null
+                }
+                SongSourceType.MEDIA_STORE -> null
+            })
         }
     }
 }

@@ -265,6 +265,27 @@ class RadioViewModelTest {
         assertThat(vm.state.value.favoritesFailed).isFalse()
     }
 
+    @Test
+    fun `initial favorites entry collects saved stations without a network search`() = runTest {
+        val saved = station("saved")
+        favorites.value = listOf(saved)
+        val vm = RadioViewModel(repo, playback, initiallyFavorites = true).also { store.put("radio", it) }
+        runCurrent()
+
+        assertThat(vm.state.value.showFavorites).isTrue()
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.favorites).containsExactly(saved)
+        assertThat(vm.state.value.visibleStations).containsExactly(saved)
+        coVerify(exactly = 0) { repo.search(any()) }
+
+        val updated = station("updated")
+        favorites.value = listOf(updated)
+        runCurrent()
+
+        assertThat(vm.state.value.visibleStations).containsExactly(updated)
+        coVerify(exactly = 0) { repo.search(any()) }
+    }
+
     private fun viewModel() = RadioViewModel(repo, playback).also { store.put("radio", it) }
 
     private fun station(id: String) = RadioStation(

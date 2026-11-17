@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.data.database.AppDatabase
 import com.libreplayer.data.database.MIGRATION_1_2
+import com.libreplayer.data.database.MIGRATION_2_3
 import com.libreplayer.data.repository.*
 import com.libreplayer.data.repository.ProvenanceFixtures as F
 import com.libreplayer.library.scanner.*
@@ -49,11 +50,11 @@ class SourceMigrationInstrumentedTest {
         assertEquals(before, migrated)
         assertEquals(snapshot, store.snapshot.first())
         assertArrayEquals(preferencesBefore, preferenceFile.readBytes())
-        assertEquals(2, db.openHelper.writableDatabase.version)
+        assertEquals(3, db.openHelper.writableDatabase.version)
         assertEquals(listOf("media:43"), db.sourceDao().getProtections().map { it.songId })
         assertEquals(4, db.sourceDao().getMemberships().size)
         assertTrue(db.sourceDao().getSources().all { it.version == null && it.generation == null })
-        db = Room.databaseBuilder(app, AppDatabase::class.java, path.path).addMigrations(MIGRATION_1_2).build()
+        db = Room.databaseBuilder(app, AppDatabase::class.java, path.path).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         assertEquals(before, capture(oldTables) { db.openHelper.writableDatabase.query(it) })
         val userTables = listOf("playlists", "playlist_songs", "recently_played")
         val userBefore = capture(userTables) { db.openHelper.writableDatabase.query(it) }
@@ -141,7 +142,7 @@ class SourceMigrationInstrumentedTest {
     }
 
     @Test fun normalPrimaryRefreshAndPartialSourceFailure() = runBlocking {
-        val db = Room.databaseBuilder(app, AppDatabase::class.java, "primary-smoke.db").addMigrations(MIGRATION_1_2).build()
+        val db = Room.databaseBuilder(app, AppDatabase::class.java, "primary-smoke.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         val scanner = DeviceLibraryScanner(app, AudioMetadataReader(app))
         val first = scanner.scan(emptyList(), emptyList(), emptyList(), emptyList(), LibraryScanMode.FULL_REBUILD)
         assertFalse(first.sources.any { it is SourceScan.Unavailable })

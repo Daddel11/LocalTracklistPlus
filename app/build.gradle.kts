@@ -115,6 +115,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.okhttp)
+    implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.profileinstaller)
 
     baselineProfile(project(":baselineprofile"))
@@ -130,6 +131,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.work.testing)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

@@ -66,6 +66,7 @@ internal object ScannedSongDeduper {
 
     internal fun canonicalPathKey(song: ScannedSong): String? =
         when (song.sourceType) {
+            SongSourceType.DOWNLOADED -> null
             SongSourceType.MEDIA_STORE -> song.relativePath
                 ?.takeIf(String::isNotBlank)
                 ?.let { buildPathKey(it, song.displayName) }
@@ -161,6 +162,7 @@ internal object ScannedSongDeduper {
 
     private fun sourceRank(sourceType: SongSourceType): Int =
         when (sourceType) {
+            SongSourceType.DOWNLOADED -> 3
             SongSourceType.MEDIA_STORE -> 2
             SongSourceType.DOCUMENT -> 1
         }

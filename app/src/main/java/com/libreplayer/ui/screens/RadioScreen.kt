@@ -65,7 +65,7 @@ fun RadioScreen(
         ) {
             item {
                 Text(
-                    stringResource(R.string.radio_title),
+                    stringResource(if (state.showFavorites) R.string.radio_favorites_title else R.string.radio_title),
                     modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.headlineLarge,
                 )
@@ -119,6 +119,25 @@ fun RadioScreen(
                         "GB" to R.string.radio_uk,
                         "US" to R.string.radio_usa,
                     ), onCountryChange,
+                )
+                RadioFilterRow(
+                    R.string.radio_electronic_subgenres, state.filters.genre,
+                    listOf(
+                        "minimal" to R.string.radio_genre_minimal,
+                        "minimal techno" to R.string.radio_genre_minimal_techno,
+                        "trance" to R.string.radio_genre_trance,
+                        "psytrance" to R.string.radio_genre_psytrance,
+                        "acid" to R.string.radio_genre_acid,
+                        "acid techno" to R.string.radio_genre_acid_techno,
+                        "techno" to R.string.radio_genre_techno,
+                        "hard techno" to R.string.radio_genre_hard_techno,
+                        "hardcore" to R.string.radio_genre_hardcore,
+                        "hardstyle" to R.string.radio_genre_hardstyle,
+                        "house" to R.string.radio_genre_house,
+                        "deep house" to R.string.radio_genre_deep_house,
+                        "tech house" to R.string.radio_genre_tech_house,
+                        "drum and bass" to R.string.radio_genre_drum_bass,
+                    ), onGenreChange,
                 )
                 RadioFilterRow(
                     R.string.radio_language, state.filters.language,

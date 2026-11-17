@@ -11,8 +11,12 @@ sealed class AppRoute(val route: String) {
     data object Playlists : AppRoute("playlists")
     data object Settings : AppRoute("settings")
     data object Search : AppRoute("search")
+    data object LocalSearch : AppRoute("local_search")
     data object NowPlaying : AppRoute("now_playing")
     data object Queue : AppRoute("queue")
+    data object OfflinePlaylistDetail : AppRoute("offline_playlist/{playlistId}") {
+        fun create(playlistId: Long): String = "offline_playlist/$playlistId"
+    }
     data object AudioDetails : AppRoute("audio_details/{songId}") {
         fun create(songId: String): String = "audio_details/${Uri.encode(songId)}"
     }

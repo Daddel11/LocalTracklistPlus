@@ -15,6 +15,10 @@ class SourceMigrationTestRunner : AndroidJUnitRunner() {
         val root = File(context.cacheDir, "q37-migration-${UUID.randomUUID()}").apply { mkdirs() }
         val isolated = object : ContextWrapper(context) {
             override fun getFilesDir(): File = File(root, "files").apply { mkdirs() }
+            override fun getCacheDir(): File = File(root, "cache").apply { mkdirs() }
+            override fun getNoBackupFilesDir(): File = File(root, "no_backup").apply { mkdirs() }
+            override fun getSharedPreferences(name: String, mode: Int): android.content.SharedPreferences =
+                context.getSharedPreferences("${root.name}-$name", mode)
             override fun getDatabasePath(name: String): File =
                 (if (File(name).isAbsolute) File(name) else File(root, "databases/$name")).apply {
                     check(canonicalPath.startsWith(root.canonicalPath + File.separator))
